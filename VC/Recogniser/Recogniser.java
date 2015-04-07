@@ -82,6 +82,7 @@ public class Recogniser {
 	void syntacticError(String messageTemplate, String tokenQuoted)
 			throws SyntaxError {
 		SourcePosition pos = currentToken.position;
+		System.out.println("current: " + currentToken.spelling);
 		errorReporter.reportError(messageTemplate, tokenQuoted, pos);
 		throw (new SyntaxError());
 	}
@@ -91,8 +92,8 @@ public class Recogniser {
 	public void parseProgram() {
 
 		try {
-//			 parseFuncDecl();
-			parseExpr();
+			//(func - decl | var - decl)*
+			
 			if (currentToken.kind != Token.EOF) {
 				syntacticError("\"%\" wrong result type for a function",
 						currentToken.spelling);
@@ -104,21 +105,15 @@ public class Recogniser {
 	// ========================== DECLARATIONS ========================
 
 	void parseFuncDecl() throws SyntaxError {
-
-//		match(Token.VOID);
-//		parseIdent();
-//		match(Token.LPAREN);
-//		match(Token.RPAREN);
-//		parseCompoundStmt()h()
 		parseType();
 		parseIdent();
-//		parse
+		parseParaList();
+		parseCompoundStmt();
 	}
 
 	void parseVarDecl() throws SyntaxError {
 		parseType();
 		parseInitDeclaratorList();
-		// ends with a semi colon
 		match(Token.SEMICOLON);
 	}
 	
@@ -238,16 +233,82 @@ public class Recogniser {
 	void parseStmt() throws SyntaxError {
 
 		switch (currentToken.kind) {
-
+		case Token.LCURLY:
+			parseCompoundStmt();
+			break;
+		case Token.IF:
+			parseIfStmt();
+			break;
+		case Token.FOR:
+			parseForStmt();
+			break;
+		case Token.WHILE:
+			parseWhileStmt();
+			break;
+		case Token.BREAK:
+			parseBreakStmt();
+			break;
 		case Token.CONTINUE:
 			parseContinueStmt();
 			break;
-
+		case Token.RETURN:
+			parseReturnStmt();
+			break;		
 		default:
 			parseExprStmt();
 			break;
 
 		}
+	}
+	
+	void parseIfStmt() throws SyntaxError{
+		match(Token.IF);
+		match(Token.LPAREN);
+		parseExpr();
+		match(Token.RPAREN);
+		parseStmt();
+		// optional else 
+		if(currentToken.kind == Token.ELSE){
+			parseStmt();
+		}
+	}
+	
+	void parseForStmt() throws SyntaxError{
+		match(Token.FOR);
+		match(Token.LPAREN);
+		//  expr? <-- to do
+		if(currentToken.kind != Token.SEMICOLON){
+			parseExpr();
+		}
+		match(Token.SEMICOLON);
+		// expr ? <-- to do
+		if(currentToken.kind != Token.SEMICOLON){
+			parseExpr();
+		}
+		match(Token.SEMICOLON);
+		match(Token.RPAREN);
+		parseStmt();
+	}
+	
+	void parseWhileStmt() throws SyntaxError{
+		match(Token.WHILE);
+		match(Token.LPAREN);
+		parseExpr();
+		match(Token.RPAREN);
+		parseStmt();
+	}
+	
+	void parseBreakStmt() throws SyntaxError{
+		match(Token.BREAK);
+		match(Token.SEMICOLON);
+	}
+	
+	void parseReturnStmt() throws SyntaxError{
+		match(Token.RETURN);
+		if(currentToken.kind != Token.SEMICOLON){
+			parseExpr();
+		}
+		match(Token.SEMICOLON);
 	}
 
 	void parseContinueStmt() throws SyntaxError {
@@ -279,7 +340,6 @@ public class Recogniser {
 
 		if (currentToken.kind == Token.ID) {
 			currentToken = scanner.getToken();
-			System.out.println("id found");
 		} else
 			syntacticError("identifier expected here", "");
 	}
@@ -297,7 +357,6 @@ public class Recogniser {
 	// ======================= EXPRESSIONS ======================
 
 	void parseExpr() throws SyntaxError {
-		System.out.println("hello there");
 		parseAssignExpr();
 	}
 
@@ -450,7 +509,6 @@ public class Recogniser {
 	}
 
 	void parseUnaryExpr() throws SyntaxError {
-		System.out.println("this: "  + currentToken.spelling);
 		switch (currentToken.kind) {
 		case Token.MINUS: 
 		case Token.PLUS:
@@ -501,7 +559,6 @@ public class Recogniser {
 	// literal AST nodes will be constructed inside these methods.
 
 	void parseIntLiteral() throws SyntaxError {
-		System.out.println("found intliteral");
 		if (currentToken.kind == Token.INTLITERAL) {
 			currentToken = scanner.getToken();
 		} else
@@ -529,5 +586,63 @@ public class Recogniser {
 			currentToken = scanner.getToken();
 		} else
 			syntacticError("boolean literal expected here", "");
+	}
+	//======================== PARAMS ==========================
+	void parseParaList() throws SyntaxError{
+		match(Token.LPAREN);
+		if(currentToken.kind != Token.RPAREN){
+			parseProperParaList();
+		}
+		match(Token.RPAREN);
+	}
+	
+	void parseProperParaList() throws SyntaxError{
+		parseParaDecl();
+		parseProperParaListStar();
+	}
+	
+	void parseProperParaListStar() throws SyntaxError{
+		switch(currentToken.kind){
+		case Token.COMMA:
+			accept();
+			parseParaDecl();
+			parseProperParaListStar();
+			break;
+		default:
+			break;
+		}
+	}
+	
+	void parseParaDecl() throws SyntaxError{
+		parseType();
+		parseDeclarator();
+	}
+	
+	void parseArgList() throws SyntaxError{
+		match(Token.LPAREN);
+		if(currentToken.kind != Token.RPAREN){
+			parseProperArgList();
+		}
+		match(Token.RPAREN);
+	}
+	
+	void parseProperArgList() throws SyntaxError{
+		parseArg();
+		parseProperArgListStar();
+	}
+	
+	void parseProperArgListStar() throws SyntaxError{
+		switch(currentToken.kind){
+		case Token.COMMA:
+			accept();
+			parseArg();
+			break;
+		default:
+			break;
+		}
+	}
+	
+	void parseArg() throws SyntaxError{
+		parseExpr();
 	}
 }

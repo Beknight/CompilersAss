@@ -244,9 +244,9 @@ public final class Scanner {
 				break;
 			case '\t':
 				skippableFound = true;
-				// csomplete me
 				checkSpacesToSkip();
 				accept();
+				break;
 			default:
 				skippableFound = false;
 				break;

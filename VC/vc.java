@@ -35,9 +35,9 @@ public class vc {
 
         reporter = new ErrorReporter();
         scanner  = new Scanner(source, reporter);
+        scanner.enableDebugging();
         recogniser = new Recogniser(scanner, reporter);
         recogniser.parseProgram();
-//        recogniser.parseProgram();
 
         if (reporter.numErrors == 0)
            System.out.println ("Compilation was successful.");
