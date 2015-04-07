@@ -91,7 +91,7 @@ public class Recogniser {
 	public void parseProgram() {
 
 		try {
-			// parseFuncDecl();
+//			 parseFuncDecl();
 			parseExpr();
 			if (currentToken.kind != Token.EOF) {
 				syntacticError("\"%\" wrong result type for a function",
@@ -105,13 +105,120 @@ public class Recogniser {
 
 	void parseFuncDecl() throws SyntaxError {
 
-		match(Token.VOID);
+//		match(Token.VOID);
+//		parseIdent();
+//		match(Token.LPAREN);
+//		match(Token.RPAREN);
+//		parseCompoundStmt()h()
+		parseType();
 		parseIdent();
-		match(Token.LPAREN);
-		match(Token.RPAREN);
-		parseCompoundStmt();
+//		parse
 	}
 
+	void parseVarDecl() throws SyntaxError {
+		parseType();
+		parseInitDeclaratorList();
+		// ends with a semi colon
+		match(Token.SEMICOLON);
+	}
+	
+	void parseInitDeclaratorList() throws SyntaxError{
+		parseInitDeclarator();
+
+	}
+	
+	void parseInitDeclaratorListStar() throws SyntaxError{
+		//nullible
+		switch(currentToken.kind){
+		case Token.COMMA:
+			accept();
+			parseInitDeclarator();
+			parseInitDeclaratorListStar();
+			break;
+		default:
+			
+			break;
+		}
+		
+	}
+	
+	void parseInitDeclarator() throws SyntaxError{
+		parseDeclarator();
+		parseInitDeclaratorQuestion();
+	}
+	
+	void parseInitDeclaratorQuestion() throws SyntaxError{
+		switch(currentToken.kind){
+		case Token.EQ:
+			accept();
+			parseInitialiser();
+			break;
+		default:
+			break;
+		}
+	}
+	
+	void parseDeclarator() throws SyntaxError{
+		parseIdent();
+		parseDeclaratorQuestion();
+	}
+	
+	void parseDeclaratorQuestion() throws SyntaxError{
+		switch(currentToken.kind){
+		case Token.LBRACKET:
+			match(Token.LBRACKET);
+			parseIntLiteral();
+			match(Token.RBRACKET);
+			break;
+		default:
+			break;
+		}
+	}
+	
+	void parseInitialiser() throws SyntaxError{
+		switch(currentToken.kind){
+		case Token.LCURLY:
+			accept();
+			parseExpr();
+			parseInitStar();
+			match(Token.RCURLY);
+			break;
+		default:
+			parseExpr();
+			break;
+		}
+	}
+	
+	void parseInitStar() throws SyntaxError{
+		switch(currentToken.kind){
+		case Token.COMMA:
+			accept();
+			parseExpr();
+			parseInitStar();
+			break;
+		default:
+			break;
+		}
+	}
+	
+	// primitive typess
+	
+	void parseType() throws SyntaxError{
+		// type is not nullible
+		switch(currentToken.kind){
+		case Token.VOID:
+		case Token.BOOLEAN:
+		case Token.INT:
+		case Token.FLOAT:
+			accept();
+			break;
+		default:
+			syntacticError("Expecting a Type declarator",
+					currentToken.spelling);
+			break;
+		}
+	}
+	
 	// ======================= STATEMENTS ==============================
 
 	void parseCompoundStmt() throws SyntaxError {
@@ -195,16 +302,22 @@ public class Recogniser {
 	}
 
 	void parseAssignExpr() throws SyntaxError {
-//		parseAdditiveExpr();
 		parseCondOrExpr();
+		parseAssignExprStar();
+	}
+	
+	void parseAssignExprStar() throws SyntaxError{
+		//first is a equals
 		switch(currentToken.kind){
 		case Token.EQ:
 			acceptOperator();
 			parseCondOrExpr();
+			parseAssignExprStar();
 			break;
 		default:
 			break;
 		}
+		// can be nullible
 	}
 
 	void parseCondOrExpr() throws SyntaxError {
@@ -308,12 +421,7 @@ public class Recogniser {
 		}
 	}
 	void parseMultiplicativeExpr() throws SyntaxError {
-
 		parseUnaryExpr();
-//		while (currentToken.kind == Token.MULT) {
-//			acceptOperator();
-//			parseUnaryExpr();
-//		}
 		parseMultiplicativeExprPrime();
 	}
 	
