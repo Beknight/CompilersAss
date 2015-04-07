@@ -195,20 +195,29 @@ public class Recogniser {
 	}
 
 	void parseAssignExpr() throws SyntaxError {
-
-		parseAdditiveExpr();
-
+//		parseAdditiveExpr();
+		parseCondOrExpr();
+		switch(currentToken.kind){
+		case Token.EQ:
+			acceptOperator();
+			parseCondOrExpr();
+			break;
+		default:
+			break;
+		}
 	}
 
 	void parseCondOrExpr() throws SyntaxError {
 		parseCondAndExpr();
-		parseCondOrExprPrime()();
+		parseCondOrExprPrime();
 	}
 
 	void parseCondOrExprPrime() throws SyntaxError{
 		switch(currentToken.kind){
 		case Token.OROR:
-//			acceptOperator(); <--- this is where
+			acceptOperator();
+			parseCondAndExpr();
+			parseCondOrExprPrime();
 			break;
 		default:
 			// nullible
@@ -262,24 +271,12 @@ public class Recogniser {
 		// check for the gt|e and lt|e operators
 		switch(currentToken.kind){
 		case Token.GT:
-			acceptOperator();
-			parseAdditiveExpr();
-			parseRelExprPrime()
-			break;
 		case Token.GTEQ:
-			acceptOperator();
-			parseAdditiveExpr();
-			parseRelExprPrime()
-			break;
 		case Token.LT:
-			acceptOperator();
-			parseAdditiveExpr();
-			parseRelExprPrime()
-			break;
 		case Token.LTEQ:
 			acceptOperator();
 			parseAdditiveExpr();
-			parseRelExprPrime()
+			parseRelExprPrime();
 			break;
 		default:
 			//nullible
@@ -290,10 +287,7 @@ public class Recogniser {
 	void parseAdditiveExpr() throws SyntaxError {
 
 		parseMultiplicativeExpr();
-		while (currentToken.kind == Token.PLUS) {
-			acceptOperator();
-			parseMultiplicativeExpr();
-		}
+		parseAdditiveExprPrime();
 	}
 
 	void parseAdditiveExprPrime() throws SyntaxError{
@@ -348,17 +342,10 @@ public class Recogniser {
 	}
 
 	void parseUnaryExpr() throws SyntaxError {
-		System.out.println(currentToken.kind);
+		System.out.println("this: "  + currentToken.spelling);
 		switch (currentToken.kind) {
-		case Token.MINUS: {
-			acceptOperator();
-			parseUnaryExpr();
-		}
-			break;
+		case Token.MINUS: 
 		case Token.PLUS:
-			acceptOperator();
-			parseUnaryExpr();
-			break;
 		case Token.NOT:
 			acceptOperator();
 			parseUnaryExpr();
