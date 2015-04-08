@@ -54,6 +54,7 @@ public class Recogniser {
 	private Scanner scanner;
 	private ErrorReporter errorReporter;
 	private Token currentToken;
+	private boolean firstIdChecked;
 
 	public Recogniser(Scanner lexer, ErrorReporter reporter) {
 		scanner = lexer;
@@ -90,10 +91,12 @@ public class Recogniser {
 	// ========================== PROGRAMS ========================
 
 	public void parseProgram() {
-
+		
 		try {
 			//(func - decl | var - decl)*
-			
+			while(currentToken.kind != Token.EOF){
+				parseProgramPrime();
+			}
 			if (currentToken.kind != Token.EOF) {
 				syntacticError("\"%\" wrong result type for a function",
 						currentToken.spelling);
@@ -104,22 +107,58 @@ public class Recogniser {
 
 	// ========================== DECLARATIONS ========================
 
-	void parseFuncDecl() throws SyntaxError {
+	void parseProgramPrime() throws SyntaxError{
+		firstIdChecked = false;
+		// parse type
 		parseType();
 		parseIdent();
+	
+		// check if id
+		
+		if(currentToken.kind == Token.LPAREN){
+			parseFuncDeclPrime();
+		}else{
+			//else parse var
+			firstIdChecked = true;
+			parseVarDeclPrime();
+
+		}
+		 
+		
+		
+		
+	}
+	
+	void parseFuncDecl() throws SyntaxError {
+		parseType();
+		System.out.println("parse func decl");
+		parseIdent();
+		parseParaList();
+		parseCompoundStmt();
+	}
+	void parseFuncDeclPrime() throws SyntaxError {
+		System.out.println("parse funcPruime decl");
+//		parseIdent();
 		parseParaList();
 		parseCompoundStmt();
 	}
 
 	void parseVarDecl() throws SyntaxError {
 		parseType();
+		System.out.println("parse var decl");
+		parseInitDeclaratorList();
+		match(Token.SEMICOLON);
+	}
+	
+	void parseVarDeclPrime() throws SyntaxError{
+		System.out.println("parse varPrime decl");
 		parseInitDeclaratorList();
 		match(Token.SEMICOLON);
 	}
 	
 	void parseInitDeclaratorList() throws SyntaxError{
 		parseInitDeclarator();
-
+		parseInitDeclaratorListStar();
 	}
 	
 	void parseInitDeclaratorListStar() throws SyntaxError{
@@ -154,7 +193,13 @@ public class Recogniser {
 	}
 	
 	void parseDeclarator() throws SyntaxError{
-		parseIdent();
+		System.out.println(firstIdChecked);
+		if(firstIdChecked){
+			firstIdChecked = false;
+		}else{
+			parseIdent();
+		}
+	
 		parseDeclaratorQuestion();
 	}
 	
@@ -162,7 +207,9 @@ public class Recogniser {
 		switch(currentToken.kind){
 		case Token.LBRACKET:
 			match(Token.LBRACKET);
-			parseIntLiteral();
+			if(currentToken.kind == Token.INTLITERAL){
+				parseIntLiteral();
+			}
 			match(Token.RBRACKET);
 			break;
 		default:
@@ -217,12 +264,33 @@ public class Recogniser {
 	// ======================= STATEMENTS ==============================
 
 	void parseCompoundStmt() throws SyntaxError {
-
+		boolean inStatementPhase = false;
 		match(Token.LCURLY);
-		parseStmtList();
+		while(currentToken.kind != Token.RCURLY){
+			//if the first thing is not type
+			if(checkType() && !inStatementPhase){
+				
+				parseVarDecl();
+			}else{
+				System.out.println("parse stmt ");
+				parseStmt();
+				inStatementPhase = true;
+			}
+		
+		}
+		System.out.println("parsing curly bracket of compound");
 		match(Token.RCURLY);
 	}
 
+	boolean checkType(){
+		boolean isAType = true;
+		if(currentToken.kind != Token.VOID && currentToken.kind != Token.BOOLEAN && currentToken.kind != Token.INT && currentToken.kind != Token.FLOAT){
+			isAType = false;
+			System.out.println("not a type");
+		}
+		return isAType;
+	}
+	
 	// Here, a new nontermial has been introduced to define { stmt } *
 	void parseStmtList() throws SyntaxError {
 
@@ -264,11 +332,13 @@ public class Recogniser {
 	void parseIfStmt() throws SyntaxError{
 		match(Token.IF);
 		match(Token.LPAREN);
+		System.out.println("l parent if statement");
 		parseExpr();
 		match(Token.RPAREN);
 		parseStmt();
 		// optional else 
 		if(currentToken.kind == Token.ELSE){
+			match(Token.ELSE);
 			parseStmt();
 		}
 	}
@@ -323,10 +393,17 @@ public class Recogniser {
 		if (currentToken.kind == Token.ID
 				|| currentToken.kind == Token.INTLITERAL
 				|| currentToken.kind == Token.MINUS
-				|| currentToken.kind == Token.LPAREN) {
+				|| currentToken.kind == Token.LPAREN
+				|| currentToken.kind == Token.BOOLEANLITERAL
+				|| currentToken.kind == Token.STRINGLITERAL
+				|| currentToken.kind == Token.FLOATLITERAL
+				|| currentToken.kind == Token.PLUS
+				|| currentToken.kind == Token.NOT
+				) {
 			parseExpr();
 			match(Token.SEMICOLON);
 		} else {
+			System.out.println("matched semi");
 			match(Token.SEMICOLON);
 		}
 	}
@@ -357,6 +434,7 @@ public class Recogniser {
 	// ======================= EXPRESSIONS ======================
 
 	void parseExpr() throws SyntaxError {
+		System.out.println("parse expr");
 		parseAssignExpr();
 	}
 
@@ -406,7 +484,7 @@ public class Recogniser {
 		case Token.ANDAND:
 			acceptOperator();
 			parseEqualityExpr();
-			parseCondAndExpr();
+			parseCondAndExprPrime();
 			break;
 		default:
 			// nullible
@@ -425,7 +503,7 @@ public class Recogniser {
 		case Token.NOTEQ:
 			acceptOperator();
 			parseRelExpr();
-			parseEqualityExpr();
+			parseEqualityExprPrime();
 			default:
 				//nullible
 				break;
@@ -509,6 +587,7 @@ public class Recogniser {
 	}
 
 	void parseUnaryExpr() throws SyntaxError {
+		System.out.println("");
 		switch (currentToken.kind) {
 		case Token.MINUS: 
 		case Token.PLUS:
@@ -526,14 +605,22 @@ public class Recogniser {
 		switch (currentToken.kind) {
 
 		case Token.ID:
+			
 			parseIdent();
+			if(currentToken.kind == Token.LPAREN){
+				parseArgList();
+			}else if(currentToken.kind == Token.LBRACKET){
+				match(Token.LBRACKET);
+				parseExpr();
+				match(Token.RBRACKET);
+			}
 			break;
 
-		case Token.LPAREN: {
+		case Token.LPAREN: 
 			accept();
+			System.out.println("entered lparen");
 			parseExpr();
 			match(Token.RPAREN);
-		}
 			break;
 
 		case Token.INTLITERAL:
@@ -598,6 +685,7 @@ public class Recogniser {
 	
 	void parseProperParaList() throws SyntaxError{
 		parseParaDecl();
+		System.out.println("make it");
 		parseProperParaListStar();
 	}
 	
