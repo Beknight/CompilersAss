@@ -83,7 +83,6 @@ public class Recogniser {
 	void syntacticError(String messageTemplate, String tokenQuoted)
 			throws SyntaxError {
 		SourcePosition pos = currentToken.position;
-		System.out.println("current: " + currentToken.spelling);
 		errorReporter.reportError(messageTemplate, tokenQuoted, pos);
 		throw (new SyntaxError());
 	}
@@ -131,13 +130,11 @@ public class Recogniser {
 	
 	void parseFuncDecl() throws SyntaxError {
 		parseType();
-		System.out.println("parse func decl");
 		parseIdent();
 		parseParaList();
 		parseCompoundStmt();
 	}
 	void parseFuncDeclPrime() throws SyntaxError {
-		System.out.println("parse funcPruime decl");
 //		parseIdent();
 		parseParaList();
 		parseCompoundStmt();
@@ -145,13 +142,11 @@ public class Recogniser {
 
 	void parseVarDecl() throws SyntaxError {
 		parseType();
-		System.out.println("parse var decl");
 		parseInitDeclaratorList();
 		match(Token.SEMICOLON);
 	}
 	
 	void parseVarDeclPrime() throws SyntaxError{
-		System.out.println("parse varPrime decl");
 		parseInitDeclaratorList();
 		match(Token.SEMICOLON);
 	}
@@ -193,7 +188,6 @@ public class Recogniser {
 	}
 	
 	void parseDeclarator() throws SyntaxError{
-		System.out.println(firstIdChecked);
 		if(firstIdChecked){
 			firstIdChecked = false;
 		}else{
@@ -272,13 +266,10 @@ public class Recogniser {
 				
 				parseVarDecl();
 			}else{
-				System.out.println("parse stmt ");
 				parseStmt();
 				inStatementPhase = true;
 			}
-		
 		}
-		System.out.println("parsing curly bracket of compound");
 		match(Token.RCURLY);
 	}
 
@@ -286,7 +277,6 @@ public class Recogniser {
 		boolean isAType = true;
 		if(currentToken.kind != Token.VOID && currentToken.kind != Token.BOOLEAN && currentToken.kind != Token.INT && currentToken.kind != Token.FLOAT){
 			isAType = false;
-			System.out.println("not a type");
 		}
 		return isAType;
 	}
@@ -332,7 +322,6 @@ public class Recogniser {
 	void parseIfStmt() throws SyntaxError{
 		match(Token.IF);
 		match(Token.LPAREN);
-		System.out.println("l parent if statement");
 		parseExpr();
 		match(Token.RPAREN);
 		parseStmt();
@@ -356,6 +345,9 @@ public class Recogniser {
 			parseExpr();
 		}
 		match(Token.SEMICOLON);
+		if(currentToken.kind != Token.RPAREN){
+			parseExpr();
+		}
 		match(Token.RPAREN);
 		parseStmt();
 	}
@@ -403,7 +395,6 @@ public class Recogniser {
 			parseExpr();
 			match(Token.SEMICOLON);
 		} else {
-			System.out.println("matched semi");
 			match(Token.SEMICOLON);
 		}
 	}
@@ -434,7 +425,6 @@ public class Recogniser {
 	// ======================= EXPRESSIONS ======================
 
 	void parseExpr() throws SyntaxError {
-		System.out.println("parse expr");
 		parseAssignExpr();
 	}
 
@@ -587,7 +577,6 @@ public class Recogniser {
 	}
 
 	void parseUnaryExpr() throws SyntaxError {
-		System.out.println("");
 		switch (currentToken.kind) {
 		case Token.MINUS: 
 		case Token.PLUS:
@@ -602,10 +591,9 @@ public class Recogniser {
 	}
 
 	void parsePrimaryExpr() throws SyntaxError {
+		
 		switch (currentToken.kind) {
-
 		case Token.ID:
-			
 			parseIdent();
 			if(currentToken.kind == Token.LPAREN){
 				parseArgList();
@@ -615,14 +603,11 @@ public class Recogniser {
 				match(Token.RBRACKET);
 			}
 			break;
-
 		case Token.LPAREN: 
 			accept();
-			System.out.println("entered lparen");
 			parseExpr();
 			match(Token.RPAREN);
 			break;
-
 		case Token.INTLITERAL:
 			parseIntLiteral();
 			break;
@@ -634,6 +619,7 @@ public class Recogniser {
 			break;
 		case Token.STRINGLITERAL:
 			parseStringLiteral();
+			break;
 		default:
 			syntacticError("illegal parimary expression", currentToken.spelling);
 
@@ -685,7 +671,6 @@ public class Recogniser {
 	
 	void parseProperParaList() throws SyntaxError{
 		parseParaDecl();
-		System.out.println("make it");
 		parseProperParaListStar();
 	}
 	
