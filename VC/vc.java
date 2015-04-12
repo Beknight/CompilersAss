@@ -35,7 +35,7 @@ public class vc {
 
         reporter = new ErrorReporter();
         scanner  = new Scanner(source, reporter);
-        scanner.enableDebugging();
+//        scanner.enableDebugging();
         recogniser = new Recogniser(scanner, reporter);
         recogniser.parseProgram();
 
