@@ -611,7 +611,7 @@ public class Recogniser {
 		case Token.INTLITERAL:
 			parseIntLiteral();
 			break;
-		case Token.FLOAT:
+		case Token.FLOATLITERAL:
 			parseFloatLiteral();
 			break;
 		case Token.BOOLEANLITERAL:
@@ -657,8 +657,9 @@ public class Recogniser {
 
 		if (currentToken.kind == Token.STRINGLITERAL) {
 			currentToken = scanner.getToken();
-		} else
-			syntacticError("boolean literal expected here", "");
+		} else{
+			syntacticError("string literal expected here", "");
+		}
 	}
 	//======================== PARAMS ==========================
 	void parseParaList() throws SyntaxError{
