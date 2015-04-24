@@ -298,7 +298,99 @@ public class Parser {
 		exprAST = parseAdditiveExpr();
 		return exprAST;
 	}
-
+	
+	Expr parseAssignExpr() throws SyntaxError{
+		Expr exprAST = null;
+		SourcePosition assignExprStart = new SourcePosition();
+		exprAST = parseCondOrExpr();
+		while(currentToken.kind == Token.EQ){
+			Operator opAST = acceptOperator();
+			Expr e2AST = parseCondOrExpr();
+			SourcePosition assignPos = new SourcePosition();
+			copyStart(assignExprStart, assignPos);
+			finish(assignPos);
+			exprAST = new BinaryExpr(exprAST, opAST, e2AST,assignPos);
+		}
+		
+		return exprAST;
+	}
+	
+	Expr parseCondOrExpr() throws SyntaxError{
+		Expr exprAST = null;
+		SourcePosition condOrExprStart = new SourcePosition();
+		start(condOrExprStart);
+		exprAST = parseCondAndExpr();
+		while(currentToken.kind == Token.OROR){
+			// accept operator
+			Operator opAST = acceptOperator();
+			// prase conad and expr
+			Expr e2AST = parseCondAndExpr();
+			// start new pos
+			SourcePosition condOrPos = new SourcePosition();
+			copyStart(condOrExprStart, condOrPos);
+			finish(condOrPos);
+			// parse info into expr tree
+			exprAST = new BinaryExpr(exprAST,opAST,e2AST,condOrPos);
+		}
+		// return expr
+		return exprAST;
+	}
+	
+	Expr parseCondAndExpr() throws SyntaxError{
+		Expr exprAST = null;
+		SourcePosition condAndStartPos = new SourcePosition();
+		start(condAndStartPos);
+		exprAST = parseEqualityExpr();
+		while(currentToken.kind == Token.ANDAND){
+			Operator opAST = acceptOperator();
+			// parse equality expr
+			Expr e2AST = parseEqualityExpr();
+			SourcePosition condAndPos = new SourcePosition();
+			copyStart(condAndStartPos, condAndPos);
+			finish(condAndPos);
+			exprAST = new BinaryExpr(exprAST,opAST,e2AST,condAndPos);
+		}
+		return exprAST;
+	}
+	
+	Expr parseEqualityExpr() throws SyntaxError{
+		Expr exprAST = null; 
+		SourcePosition equStartPos = new SourcePosition();
+		start(equStartPos);
+		exprAST = parseRelExpr();
+		while(currentToken.kind == Token.EQEQ
+				|| currentToken.kind == Token.NOTEQ){
+			Operator opAST = acceptOperator();
+			// parse rel expr
+			Expr e2AST = parseRelExpr();
+			SourcePosition eqPos = new SourcePosition();
+			copyStart(equStartPos, eqPos);
+			finish(eqPos);
+			exprAST = new BinaryExpr(exprAST, opAST,e2AST,eqPos);
+		}
+		return exprAST;
+	}
+	
+	Expr parseRelExpr() throws SyntaxError{
+		Expr exprAST = null;
+		SourcePosition relStartPos = new SourcePosition();
+		start(relStartPos);
+		exprAST = parseAdditiveExpr();
+		while(currentToken.kind == Token.GT
+				|| currentToken.kind == Token.GTEQ
+				|| currentToken.kind == Token.LT
+				|| currentToken.kind == Token.LTEQ){
+			Operator opAST = acceptOperator();
+			// parse additive
+			Expr e2AST = parseAdditiveExpr();
+			SourcePosition relPos = new SourcePosition();
+			copyStart(relStartPos, relPos);
+			finish(relPos);
+			exprAST = new BinaryExpr(exprAST, opAST, e2AST, relPos);
+		}
+		return exprAST;
+	}
+	
 	Expr parseAdditiveExpr() throws SyntaxError {
 		Expr exprAST = null;
 
@@ -347,7 +439,9 @@ public class Parser {
 		start(unaryPos);
 
 		switch (currentToken.kind) {
-		case Token.MINUS: {
+		case Token.MINUS: 
+		case Token.PLUS:
+		case Token.NOT:{
 			Operator opAST = acceptOperator();
 			Expr e2AST = parseUnaryExpr();
 			finish(unaryPos);
