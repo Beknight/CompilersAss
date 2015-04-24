@@ -710,6 +710,7 @@ public class Recogniser {
 		case Token.COMMA:
 			accept();
 			parseArg();
+			parseProperArgListStar();
 			break;
 		default:
 			break;
