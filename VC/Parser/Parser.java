@@ -164,6 +164,16 @@ public class Parser {
 		return dlAST;
 	}
 
+	Decl parseGlobalVarDecl() throws SyntaxError{
+		Decl vAST = null;
+		SourcePosition varPos = new SourcePosition();
+		start(varPos);
+		Type tAST = parseType();
+		// decl list
+		
+		// initialiser
+	}
+	
 	Decl parseFuncDecl() throws SyntaxError {
 
 		Decl fAST = null;
@@ -198,6 +208,40 @@ public class Parser {
 		decl = new Decl(declPos);
 		return decl;
 	}
+	
+    InitExpr parseInitialiser() throws SyntaxError{
+    	InitExpr iExpr = null;
+    	ExprList eList = null;
+    	SourcePosition initPos = new SourcePosition();
+    	start(initPos);
+    	if(currentToken.kind != Token.LCURLY){
+    		// parse expr
+    		Expr expr parseExpr();
+    		// built the list
+    		eList = new ExprList(expr,eList,initPos);
+    		//finish
+    		finish(initPos);
+    	}else{
+    		// match curly
+    		match(Token.LCURLY);
+    		//parse expr
+    		Expr expr = parseExpr();
+    		//build list
+    		eList = new ExprList(expr, eList,initPos)
+    		//while comma
+    		while(currentToken.kind = Token.COMMA){
+    			//parse expr
+    			expr = parseExpr();
+        		//build list
+        		eList = new ExprList(expr, eList,initPos)
+    		}
+    		finish(initPos);
+    		// close curly
+    		match(Token.RCURLY);
+    	}
+    	iExpr = new InitExpr(eList,initPos);
+    	return iExpr;
+    }
 	
 	// ======================== TYPES ==========================
 
