@@ -77,6 +77,7 @@ public class vc {
 
         reporter = new ErrorReporter();
         scanner  = new Scanner(source, reporter);
+        scanner.enableDebugging();
         parser   = new Parser(scanner, reporter);
 
         if (ASTFilename == null)
