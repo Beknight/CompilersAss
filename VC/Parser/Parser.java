@@ -61,6 +61,9 @@ public class Parser {
 	private SourcePosition previousTokenPosition;
 	private SourcePosition dummyPos = new SourcePosition();
 
+	private Type globalType_;
+	private Ident globalId_;
+	
 	public Parser(Scanner lexer, ErrorReporter reporter) {
 		scanner = lexer;
 		errorReporter = reporter;
@@ -128,8 +131,8 @@ public class Parser {
 		start(programPos);
 
 		try {
-//			List dlAST = parseProgramPrime();
-			List dlAST = parseFuncDeclList();
+			List dlAST = parseProgramPrime();
+//			List dlAST = parseFuncDeclList();
 			finish(programPos);
 			programAST = new Program(dlAST, programPos);
 			if (currentToken.kind != Token.EOF) {
@@ -145,11 +148,39 @@ public class Parser {
 
 	List parseProgramPrime() throws SyntaxError{
 		List progList = null;
-		while(currentToken.kind != Token.EOF){
-			// parse type 
-			// parse ident
-			// if lparen then func
-			// else var
+		List dlAST = null;
+		Decl dAST = null;
+		SourcePosition progPos = new SourcePosition();
+		start(progPos);
+		// parse type 
+		globalType_ = parseType();
+		// parse id
+		globalId_ = parseIdent();
+		// check for lparen
+		if(currentToken.kind == Token.LPAREN){
+			// pars funcc decl
+			dAST = parseFuncDecl();
+		}else{
+			 // parse var decl 
+			dAST = parseGlobalVarDecl();
+		}
+		// if has type
+		if(checkType()){
+			// dlast = parseprogram
+			progList = parseProgramPrime();
+			//finish
+			finish(progPos);
+			// put the dast into the thing
+			progList = new DeclList(dAST,progList,progPos);
+		}else if(!checkType()){
+			// new decl list
+			finish(progPos);
+			progList = new DeclList(dAST,new EmptyDeclList(dummyPos),progPos);
+		}
+		// if dast is null
+		if(dAST == null){
+			// build null list
+			progList = new EmptyDeclList(dummyPos);
 		}
 		return progList;
 	}
@@ -163,7 +194,7 @@ public class Parser {
 
 		dAST = parseFuncDecl();
 
-		if (currentToken.kind == Token.VOID) {
+		if (checkType()) {
 			dlAST = parseFuncDeclList();
 			finish(funcPos);
 			dlAST = new DeclList(dAST, dlAST, funcPos);
@@ -185,9 +216,7 @@ public class Parser {
 		
 		dAST = parseGlobalVarDecl();
 		
-		if(currentToken.kind == Token.BOOLEAN
-				|| currentToken.kind == Token.INT
-			|| currentToken.kind == Token.FLOAT){
+		if(checkType()){
 			dlAST = parseGlobalVarDeclList();
 			finish(varDeclPos);
 			dlAST = new DeclList(dAST, dlAST, varDeclPos);
@@ -205,9 +234,9 @@ public class Parser {
 		Expr eAST = null;
 		SourcePosition varPos = new SourcePosition();
 		start(varPos);
-		Type tAST = parseType();
+		Type tAST = globalType_;
 		// init decl list
-		Ident iAST = parseIdent();
+		Ident iAST = globalId_;
 		//if(=)
 		if(currentToken.kind == Token.EQ){
 //			Operator opAST = acceptOperator();
@@ -233,8 +262,8 @@ public class Parser {
 		SourcePosition funcPos = new SourcePosition();
 		start(funcPos);
 
-		Type tAST = parseType();
-		Ident iAST = parseIdent();
+		Type tAST = globalType_;
+		Ident iAST = globalId_;
 		List fplAST = parseParaList();
 		Stmt cAST = parseCompoundStmt();
 		finish(funcPos);
@@ -331,18 +360,18 @@ public class Parser {
 		
 		dAST = parseLocalVarDecl();
 		
-		if(currentToken.kind == Token.BOOLEAN
-				|| currentToken.kind == Token.INT
-			|| currentToken.kind == Token.FLOAT){
+		if(checkType()){
 			dlAST = parseLocalVarDeclList();
 			finish(varDeclPos);
 			dlAST = new DeclList(dAST, dlAST, varDeclPos);
-		}else if(dAST != null){
+		}else if(!checkType()){
 			finish(varDeclPos);
 			dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos),varDeclPos);
 		}
-		if(dlAST == null)
+		if(dAST == null ){
+			System.out.println("empty decl");
 			dlAST = new EmptyDeclList(dummyPos);
+		}
 		return dlAST;
 	}
 	
@@ -375,18 +404,20 @@ public class Parser {
 
 	Stmt parseCompoundStmt() throws SyntaxError {
 		Stmt cAST = null;
-		boolean inStatementPhase = false;
+		boolean variables = false;
+		List dlAST = null;
 		SourcePosition stmtPos = new SourcePosition();
 		start(stmtPos);
 
 		match(Token.LCURLY);
 
 //		 Insert code here to build a DeclList node for variable declarations
-		System.out.println("entered here");
 		if(checkType()){
-			List dlAST = parseLocalVarDeclList();
+			dlAST = parseLocalVarDeclList();
+			variables = true;
+		}else{
+			dlAST = new EmptyDeclList(stmtPos);
 		}
-		System.out.println("errored here");
 		List slAST = parseStmtList();
 		match(Token.RCURLY);
 		finish(stmtPos);
@@ -395,10 +426,11 @@ public class Parser {
 		 * In the subset of the VC grammar, no variable declarations are
 		 * allowed. Therefore, a block is empty iff it has no statements.
 		 */
-		if (slAST instanceof EmptyStmtList)
+		if (slAST instanceof EmptyStmtList && !variables)
 			cAST = new EmptyCompStmt(stmtPos);
 		else
-			cAST = new CompoundStmt(new EmptyDeclList(dummyPos), slAST, stmtPos);
+			cAST = new CompoundStmt(dlAST, slAST, stmtPos);
+		
 		return cAST;
 	}
 	boolean checkType(){
@@ -722,15 +754,13 @@ public class Parser {
 		start(assignExprStart);
 		System.out.println("doing condor");
 		exprAST = parseCondOrExpr();
-		System.out.println("never made it back");
 		while (currentToken.kind == Token.EQ) {
-			System.out.println("made it to here");
 			Operator opAST = acceptOperator();
 			Expr e2AST = parseCondOrExpr();
 			SourcePosition assignPos = new SourcePosition();
 			copyStart(assignExprStart, assignPos);
 			finish(assignPos);
-			exprAST = new BinaryExpr(exprAST, opAST, e2AST, assignPos);
+			exprAST = new AssignExpr(exprAST, e2AST, assignPos);
 		}
 
 		return exprAST;
