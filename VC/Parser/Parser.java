@@ -185,50 +185,6 @@ public class Parser {
 		return progList;
 	}
 	
-	List parseFuncDeclList() throws SyntaxError {
-		List dlAST = null;
-		Decl dAST = null;
-
-		SourcePosition funcPos = new SourcePosition();
-		start(funcPos);
-
-		dAST = parseFuncDecl();
-
-		if (checkType()) {
-			dlAST = parseFuncDeclList();
-			finish(funcPos);
-			dlAST = new DeclList(dAST, dlAST, funcPos);
-		} else if (dAST != null) {
-			finish(funcPos);
-			dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos), funcPos);
-		}
-		if (dlAST == null)
-			dlAST = new EmptyDeclList(dummyPos);
-
-		return dlAST;
-	}
-	
-	List parseGlobalVarDeclList() throws SyntaxError{
-		List dlAST = null;
-		Decl dAST = null;
-		
-		SourcePosition varDeclPos = new SourcePosition();
-		
-		dAST = parseGlobalVarDecl();
-		
-		if(checkType()){
-			dlAST = parseGlobalVarDeclList();
-			finish(varDeclPos);
-			dlAST = new DeclList(dAST, dlAST, varDeclPos);
-		}else if(dAST != null){
-			finish(varDeclPos);
-			dlAST = new DeclList(dAST, new EmptyDeclList(dummyPos),varDeclPos);
-		}
-		if(dlAST == null)
-			dlAST = new EmptyDeclList(dummyPos);
-		return dlAST;
-	}
-	
 	Decl parseGlobalVarDecl() throws SyntaxError{
 		Decl vAST = null;
 		Expr eAST = null;
@@ -242,6 +198,8 @@ public class Parser {
 //			Operator opAST = acceptOperator();
 			accept();
 			eAST = parseExpr();
+			
+		}else if(currentToken.kind == Token.COMMA){
 			
 		}else{
 		//else empty expr 
@@ -660,9 +618,10 @@ public class Parser {
 			finish(formalsPos);
 			formalsAST = new EmptyParaList(formalsPos);
 		} else {
-			// match(Token.RPAREN);
-			// finish(formsPos);
-			// formalsAST = new ParaList();
+			formalsAST = parseProperParaList();
+			match(Token.RPAREN);
+			finish(formalsPos);
+//			formalsAST = new ParaList();
 		}
 		return formalsAST;
 	}
@@ -672,14 +631,20 @@ public class Parser {
 		SourcePosition properParaListStart = new SourcePosition();
 		start(properParaListStart);
 		ParaDecl pAST= parseParaDecl();
-		propParaList = new ParaList(pAST,propParaList,properParaListStart);
-		while(currentToken.kind == Token.COMMA){
+		if(currentToken.kind == Token.COMMA){
 			accept();
-			pAST = parseParaDecl();
-			SourcePosition properParaListPos = new SourcePosition();
-			copyStart(properParaListStart,properParaListPos);
-			finish(properParaListPos);
-			propParaList = new ParaList(pAST,propParaList,properParaListPos);
+			propParaList = parseProperParaList();
+			finish(properParaListStart);
+			propParaList = new ParaList(pAST, propParaList, properParaListStart);
+			
+		}else if (currentToken.kind != Token.COMMA){
+		// else if not comma
+			finish(properParaListStart);
+			propParaList = new ParaList(pAST, new EmptyParaList(dummyPos), properParaListStart);
+		}
+		if(pAST == null){
+		// else if pAST = null
+			propParaList = new EmptyParaList(dummyPos);
 		}
 		return propParaList;
 	}
@@ -687,13 +652,15 @@ public class Parser {
 	ParaDecl parseParaDecl() throws SyntaxError{
 		ParaDecl decl = null;
 		SourcePosition paraDeclStart = new SourcePosition();
+		start(paraDeclStart);
 		//parse type
-		
+		Type tAST = parseType();
 		//parse declarator
-		
+		Ident iAST = parseIdent();
+
 		finish(paraDeclStart);
 		// create decl object
-		
+		decl = new ParaDecl(tAST,iAST,paraDeclStart);
 		return decl;
 	}
 
@@ -708,6 +675,7 @@ public class Parser {
 			argList = new EmptyArgList(argListStartPos);
 		}else{
 			argList = parseProperArgList();
+			match(Token.RPAREN);
 			finish(argListStartPos);
 		}
 		return argList;
@@ -718,14 +686,25 @@ public class Parser {
 		SourcePosition propArgListPosStart = new SourcePosition();
 		start(propArgListPosStart);
 		Arg arg = parseArg();
-		argList = new ArgList(arg, argList, propArgListPosStart);
-		while (currentToken.kind == Token.COMMA) {
+//		argList = new ArgList(arg, argList, propArgListPosStart);
+//		while (currentToken.kind == Token.COMMA) {
+//			accept();
+//			arg = parseArg();
+//			SourcePosition propArgList = new SourcePosition();
+//			copyStart(propArgListPosStart, propArgList);
+//			finish(propArgList);
+//			argList = new ArgList(arg, argList, propArgList);
+//		}
+		if(currentToken.kind == Token.COMMA){
 			accept();
-			arg = parseArg();
-			SourcePosition propArgList = new SourcePosition();
-			copyStart(propArgListPosStart, propArgList);
-			finish(propArgList);
-			argList = new ArgList(arg, argList, propArgList);
+			argList = parseProperArgList();
+			finish(propArgListPosStart);
+			argList = new ArgList(arg,argList,propArgListPosStart);
+		}else if(currentToken.kind != Token.COMMA){
+			argList = new ArgList(arg, new EmptyArgList(dummyPos),propArgListPosStart);
+		}
+		if(argList == null ){
+			argList = new EmptyArgList(dummyPos);
 		}
 		return argList;
 	}
@@ -918,9 +897,20 @@ public class Parser {
 
 		case Token.ID:
 			Ident iAST = parseIdent();
-			finish(primPos);
-			Var simVAST = new SimpleVar(iAST, primPos);
-			exprAST = new VarExpr(simVAST, primPos);
+			List lAST = null;
+			if(currentToken.kind == Token.LPAREN){
+				lAST = parseArgList();
+				exprAST = new CallExpr(iAST,lAST,primPos);
+			}else if(currentToken.kind == Token.LBRACKET){
+				match(Token.LBRACKET);
+				exprAST = parseExpr();
+				match(Token.RBRACKET);
+				System.out.println("not done");
+			}else{
+				finish(primPos);
+				Var simVAST = new SimpleVar(iAST, primPos);
+				exprAST = new VarExpr(simVAST, primPos);
+			}
 			break;
 
 		case Token.LPAREN: {
