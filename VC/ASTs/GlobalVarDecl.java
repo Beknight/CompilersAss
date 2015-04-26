@@ -4,6 +4,8 @@
 
 package VC.ASTs;
 
+import java.util.LinkedList;
+
 import VC.Scanner.SourcePosition;
 
 public class GlobalVarDecl extends Decl {
@@ -23,3 +25,4 @@ public class GlobalVarDecl extends Decl {
   }
 
 }
+
