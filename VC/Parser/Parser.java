@@ -199,7 +199,6 @@ public class Parser {
 					// progList = proglist
 					progList = new DeclList(declList.removeFirst(),
 							new EmptyDeclList(dummyPos), progPos);
-					System.out.println("declListSzie: " + declList.size());
 					while (declList.size() != 0) {
 						progList = new DeclList(declList.removeFirst(),
 								progList, progPos);
@@ -319,7 +318,6 @@ public class Parser {
 			// dlAST = dlAST
 			dlAST = new DeclList(declList.removeFirst(), new EmptyDeclList(
 					dummyPos), varDeclPos);
-			System.out.println("declListSzie: " + declList.size());
 			while (declList.size() != 0) {
 				dlAST = new DeclList(declList.removeFirst(), dlAST, varDeclPos);
 			}
@@ -365,9 +363,7 @@ public class Parser {
 
 		// Insert code here to build a DeclList node for variable declarations
 		if (checkType()) {
-			System.out.println("checking list");
 			dlAST = parseLocalVarDeclList();
-			System.out.println("came out");
 			variables = true;
 		} else {
 			dlAST = new EmptyDeclList(stmtPos);
@@ -600,7 +596,6 @@ public class Parser {
 				|| currentToken.kind == Token.PLUS
 				|| currentToken.kind == Token.NOT) {
 			Expr eAST = parseExpr();
-			System.out.println("get out");
 			match(Token.SEMICOLON);
 			finish(stmtPos);
 			sAST = new ExprStmt(eAST, stmtPos);
@@ -741,7 +736,6 @@ public class Parser {
 		Expr exprAST = null;
 		SourcePosition assignExprStart = new SourcePosition();
 		start(assignExprStart);
-		System.out.println("doing condor");
 		exprAST = parseCondOrExpr();
 		
 		if(currentToken.kind == Token.EQ){
@@ -1049,17 +1043,10 @@ public class Parser {
 		LinkedList<Ident> identList = new LinkedList<Ident>();
 		LinkedList<Decl> returnList = new LinkedList<Decl>();
 		LinkedList<Type> typeList = new LinkedList<Type>();
-		LinkedList<Expr> typeList = new LinkedList<Expr>();
+		LinkedList<Expr> exprList = new LinkedList<Expr>();
 		// add the first one
 		identList.add(globalId_);
 		typeList.add(checkIdForArray());
-		// three options
-		while (currentToken.kind == Token.COMMA) {
-			accept();
-			tempId = parseIdent();
-			identList.add(tempId);
-			typeList.add(checkIdForArray());
-		}
 		if (currentToken.kind == Token.EQ) {
 			accept();
 			if(currentToken.kind != Token.LCURLY){
@@ -1072,6 +1059,28 @@ public class Parser {
 		} else {
 			eAST = new EmptyExpr(dummyPos);
 		}
+		exprList.add(eAST);
+		// three options
+		while (currentToken.kind == Token.COMMA) {
+			accept();
+			tempId = parseIdent();
+			identList.add(tempId);
+			typeList.add(checkIdForArray());
+			if (currentToken.kind == Token.EQ) {
+				accept();
+				if(currentToken.kind != Token.LCURLY){
+					eAST = parseExpr();
+				}else{
+					match(Token.LCURLY);
+					eAST = new InitExpr(parseExprList(),declListPos);
+					match(Token.RCURLY);
+				}
+			} else {
+				eAST = new EmptyExpr(dummyPos);
+			}
+			exprList.add(eAST);
+		}
+		
 		// semi colon
 		match(Token.SEMICOLON);
 		// finish
@@ -1080,6 +1089,7 @@ public class Parser {
 		while (identList.size() != 0) {
 			tempId = identList.removeLast();
 			type = typeList.removeLast();
+			eAST = exprList.removeLast();
 			// buiild the dast
 			if (isGlobal) {
 				dAST = new GlobalVarDecl(type, tempId, eAST, declListPos);
@@ -1122,7 +1132,6 @@ public class Parser {
 		start(arrayPos);
 		Expr eAST = null;
 		if (currentToken.kind == Token.LBRACKET) {
-			System.out.println(" parsing type bracket");
 			accept();
 			if(currentToken.kind != Token.RBRACKET){
 				eAST = parseExpr();
@@ -1144,7 +1153,6 @@ public class Parser {
 		start(arrayPos);
 		Expr eAST = null;
 		if (currentToken.kind == Token.LBRACKET) {
-			System.out.println(" parsing type bracket");
 			accept();
 			if(currentToken.kind != Token.RBRACKET){
 				eAST = parseExpr();
@@ -1161,3 +1169,4 @@ public class Parser {
 	}
 
 }
+//sunday night late submission self tag 22:19 

@@ -77,7 +77,7 @@ public class vc {
 
         reporter = new ErrorReporter();
         scanner  = new Scanner(source, reporter);
-        scanner.enableDebugging();
+//        scanner.enableDebugging();
         parser   = new Parser(scanner, reporter);
 
         if (ASTFilename == null)
@@ -113,3 +113,4 @@ public class vc {
     }
 }
 
+// sunday night late submission self tag 22:19 
