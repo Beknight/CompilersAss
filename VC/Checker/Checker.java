@@ -132,6 +132,10 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitIfStmt(IfStmt ast, Object o) {
+		ast.E.visit(this,null);
+		ast.S1.visit(this,null);
+		ast.S2.visit(this,null);
+		
 		return null;
 	}
 
@@ -246,23 +250,40 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitBinaryExpr(BinaryExpr ast, Object o) {
-		System.out.println("does it get to binary ? ");
+		System.out.println("does it get to binary = " + ast.O.spelling);
 		ast.E1.visit(this,null);
 		ast.E2.visit(this,null);
+		//sort the operators out
+		System.out.println("types: " + ast.E1.type + " vs " + ast.E2.type);
 		if(ast.E1.type.equals(ast.E2.type)){
-			if(ast.E1.type.isIntType()){
+			if(ast.E1.type.isIntType() || ast.E1.type.isBooleanType()){
 				ast.O.spelling = "i" + ast.O.spelling;
 			}else if(ast.E1.type.isFloatType()){
 				ast.O.spelling = "f" + ast.O.spelling;
-				
 			}
+			ast.type = ast.E1.type;
+		}else if(checkIfFloatOpAndValid(ast.E1, ast.E2)){
+			
 		}
-		System.out.println("the type of this is: " + ast.type);
 		return ast.type;
 	}
 
 	public Object visitUnaryExpr(UnaryExpr ast, Object o) {
 		return ast.type;
+	}
+	
+	public boolean checkIfFloatOpAndValid(Expr e1, Expr e2){
+		// valid if either e1 or e2 is float 
+		boolean isFloatAndValid = false;
+		if(e1.type.isFloatType()){
+			System.out.println("first is float");
+			isFloatAndValid = e1.type.assignable(e2);
+		}else if(e2.type.isFloatType()){
+		// the left over hast to be assignable
+			System.out.println("second is float");
+			isFloatAndValid = e2.type.assignable(e1);
+		}
+		return isFloatAndValid;
 	}
 
 	public Object visitEmptyExprList(EmptyExprList ast, Object o) {
@@ -455,7 +476,7 @@ public final class Checker implements Visitor {
 		if(ast.I == null){
 			reporter.reportError(errMesg[5]  , "", ast.position);
 		}else{
-			System.out.println("should be good");
+			System.out.println("should be good" + ast.I.spelling);
 		}
 		Decl decl = (Decl)ast.I.decl;
 		return decl.T;
