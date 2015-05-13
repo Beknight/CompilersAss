@@ -116,8 +116,8 @@ public final class Checker implements Visitor {
 		idTable.openScope();
 
 		// Your code goes here
-		ast.DL.visit(this,null);
-		ast.SL.visit(this,null);
+		ast.DL.visit(this, null);
+		ast.SL.visit(this, null);
 
 		idTable.closeScope();
 		return null;
@@ -132,10 +132,10 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitIfStmt(IfStmt ast, Object o) {
-		ast.E.visit(this,null);
-		ast.S1.visit(this,null);
-		ast.S2.visit(this,null);
-		
+		ast.E.visit(this, null);
+		ast.S1.visit(this, null);
+		ast.S2.visit(this, null);
+
 		return null;
 	}
 
@@ -192,8 +192,9 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitIntExpr(IntExpr ast, Object o) {
+		System.out.println("ast.type for int expr" + ast.type);
 		ast.type = StdEnvironment.intType;
-		
+
 		return ast.type;
 	}
 
@@ -208,26 +209,20 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitVarExpr(VarExpr ast, Object o) {
-		System.out.println("visintg var");
 		ast.type = (Type) ast.V.visit(this, null);
 		return ast.type;
 	}
 
 	public Object visitAssignExpr(AssignExpr ast, Object o) {
-		//check if assignable
-		ast.E1.visit(this,null);
-		ast.E2.visit(this,null);
-		System.out.println("types: " + ast.E1.type + "vs" + ast.E2.type);
-		if(ast.E1.type.assignable(ast.E2.type)){
-			if(ast.E1.type.isFloatType() && ast.E2.type.isIntType()){
-				System.out.println("is int 2 f");
-				Operator op = new Operator("i2f", dummyPos);
-				UnaryExpr eAST = new UnaryExpr(op, ast.E2, dummyPos);
-	        	eAST.type = StdEnvironment.floatType;
-	        	ast.E2 = eAST;
+		// check if assignable
+		ast.E1.visit(this, null);
+		ast.E2.visit(this, null);
+		if (ast.E1.type.assignable(ast.E2.type)) {
+			if (ast.E1.type.isFloatType() && ast.E2.type.isIntType()) {
+				ast.E2 = addUnaryFloatExpr(ast.E2);
 			}
-		}else{
-			reporter.reportError(errMesg[9]  , "", ast.position);
+		} else {
+			reporter.reportError(errMesg[9], "", ast.position);
 		}
 		return ast.type;
 	}
@@ -241,47 +236,82 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitExprList(ExprList ast, Object o) {
-		
+		ast.E.visit(this,null);
+		ast.EL.visit(this,null);
 		return null;
 	}
 
 	public Object visitInitExpr(InitExpr ast, Object o) {
+		// make sure the type is passed down
+		System.out.println("type init expr: " + ast.type);
+		ast.IL.visit(this,null);
+		// pass the etype back up
 		return ast.type;
 	}
 
 	public Object visitBinaryExpr(BinaryExpr ast, Object o) {
-		System.out.println("does it get to binary = " + ast.O.spelling);
-		ast.E1.visit(this,null);
-		ast.E2.visit(this,null);
-		//sort the operators out
-		System.out.println("types: " + ast.E1.type + " vs " + ast.E2.type);
-		if(ast.E1.type.equals(ast.E2.type)){
-			if(ast.E1.type.isIntType() || ast.E1.type.isBooleanType()){
+		ast.E1.visit(this, null);
+		ast.E2.visit(this, null);
+		// only boolean operators
+		if(ast.O.spelling.equals("&&") || ast.O.spelling.equals("||") || ast.O.spelling.equals("!")){
+			if(ast.E1.type.isBooleanType() && ast.E1.type.equals(ast.E2.type)){
 				ast.O.spelling = "i" + ast.O.spelling;
-			}else if(ast.E1.type.isFloatType()){
-				ast.O.spelling = "f" + ast.O.spelling;
+				ast.type = ast.E1.type;
+			}else{
+				reporter.reportError(errMesg[9], "", ast.position);
 			}
-			ast.type = ast.E1.type;
-		}else if(checkIfFloatOpAndValid(ast.E1, ast.E2)){
-			
+		}else{
+		// the rest of them 
+			if (ast.E1.type.equals(ast.E2.type)) {
+				if (ast.E1.type.isIntType() || ast.E1.type.isBooleanType()) {
+					ast.O.spelling = "i" + ast.O.spelling;
+				} else if (ast.E1.type.isFloatType()) {
+					ast.O.spelling = "f" + ast.O.spelling;
+				}
+				ast.type = ast.E1.type;
+			} else if (checkIfFloatOpAndValid(ast.E1, ast.E2)) {
+				ast.O.spelling = "f" + ast.O.spelling;
+				ast.type = getTheFloatExpr(ast.E1, ast.E2).type;
+				ast.E1 = addUnaryFloatExpr(ast.E1);
+				ast.E2 = addUnaryFloatExpr(ast.E2);
+			}else{
+				reporter.reportError(errMesg[9], "", ast.position);
+			}
 		}
 		return ast.type;
 	}
 
+	public Expr addUnaryFloatExpr(Expr expr) {
+		if (expr.type.isIntType()) {
+			Operator op = new Operator("i2f", dummyPos);
+			UnaryExpr eAST = new UnaryExpr(op, expr, dummyPos);
+			eAST.type = StdEnvironment.floatType;
+			expr = eAST;
+		}
+		return expr;
+	}
+
 	public Object visitUnaryExpr(UnaryExpr ast, Object o) {
+		ast.E.visit(this, null);
+		ast.O.spelling = "f" + ast.O.spelling;
+		ast.type = ast.E.type;
 		return ast.type;
 	}
-	
-	public boolean checkIfFloatOpAndValid(Expr e1, Expr e2){
-		// valid if either e1 or e2 is float 
+
+	public Expr getTheFloatExpr(Expr e1, Expr e2) {
+		Expr expr = null;
+		expr = e1.type.isFloatType() ? e1 : e2;
+		return expr;
+	}
+
+	public boolean checkIfFloatOpAndValid(Expr e1, Expr e2) {
+		// valid if either e1 or e2 is float
 		boolean isFloatAndValid = false;
-		if(e1.type.isFloatType()){
-			System.out.println("first is float");
-			isFloatAndValid = e1.type.assignable(e2);
-		}else if(e2.type.isFloatType()){
-		// the left over hast to be assignable
-			System.out.println("second is float");
-			isFloatAndValid = e2.type.assignable(e1);
+		if (e1.type.isFloatType()) {
+			isFloatAndValid = e1.type.assignable(e2.type);
+		} else if (e2.type.isFloatType()) {
+			// the left over hast to be assignable
+			isFloatAndValid = e2.type.assignable(e1.type);
 		}
 		return isFloatAndValid;
 	}
@@ -296,7 +326,7 @@ public final class Checker implements Visitor {
 
 	public Object visitFuncDecl(FuncDecl ast, Object o) {
 		idTable.insert(ast.I.spelling, ast);
-
+		
 		// Your code goes here
 
 		// HINT
@@ -315,48 +345,50 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitEmptyDeclList(EmptyDeclList ast, Object o) {
-		System.out.println("empty decl");
 		return null;
 	}
 
 	public Object visitGlobalVarDecl(GlobalVarDecl ast, Object o) {
 		declareVariable(ast.I, ast);
 		ast.E.visit(this, null);
-		//if type of ident and expr are equal then all good
-		if(ast.T.assignable(ast.E.type)){
+		// if type of ident and expr are equal then all good
+		if (ast.T.assignable(ast.E.type)) {
 			// if type of expr is int and ident is float then good
-			if(ast.T.isFloatType() && ast.E.type.isIntType()){
-				System.out.println("is int 2 f");
+			if (ast.T.isFloatType() && ast.E.type.isIntType()) {
 				Operator op = new Operator("i2f", dummyPos);
 				UnaryExpr eAST = new UnaryExpr(op, ast.E, dummyPos);
-	        	eAST.type = StdEnvironment.floatType;
-	        	ast.E = eAST;
+				eAST.type = StdEnvironment.floatType;
+				ast.E = eAST;
 			}
-	        
-		}else{
+
+		} else {
 			// else no can DO BIATch
-			reporter.reportError(errMesg[9]  , "", ast.position);
+			reporter.reportError(errMesg[6], "", ast.position);
 		}
 		return null;
 	}
 
 	public Object visitLocalVarDecl(LocalVarDecl ast, Object o) {
 		declareVariable(ast.I, ast);
+		// if array type , we want to get the type of array
+		if(ast.T.isArrayType()){
+			ast.E.type = (Type) ast.T.visit(this,null);
+		}
+		//put the type into the expr
 		ast.E.visit(this, null);
-		//if type of ident and expr are equal then all good
-		System.out.println("expression came back with " + ast.E.type);
-		if(ast.T.assignable(ast.E.type)){
+		System.out.println("type: " + ast.T);
+		// if type of ident and expr are equal then all good
+		if (ast.T.assignable(ast.E.type)) {
 			// if type of expr is int and ident is float then good
-			if(ast.T.isFloatType() && ast.E.type.isIntType()){
-				System.out.println("is int 2 f");
+			if (ast.T.isFloatType() && ast.E.type.isIntType()) {
 				Operator op = new Operator("i2f", dummyPos);
 				UnaryExpr eAST = new UnaryExpr(op, ast.E, dummyPos);
-	        	eAST.type = StdEnvironment.floatType;
-	        	ast.E = eAST;
+				eAST.type = StdEnvironment.floatType;
+				ast.E = eAST;
 			}
-		}else{
+		} else {
 			// else no can DO BIATch
-			reporter.reportError(errMesg[9]  , "", ast.position);
+			reporter.reportError(errMesg[6], "", ast.position);
 		}
 		return null;
 	}
@@ -434,16 +466,14 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitArrayType(ArrayType ast, Object o) {
-		return null;
+		return ast.T;
 	}
 
 	// Literals, Identifiers and Operators
 
 	public Object visitIdent(Ident I, Object o) {
 		Decl binding = idTable.retrieve(I.spelling);
-		if (binding != null){		
-			System.out.println("found");
-			System.out.println("the binding" + binding.T);
+		if (binding != null) {
 			I.decl = binding;
 		}
 		return binding;
@@ -454,7 +484,6 @@ public final class Checker implements Visitor {
 	}
 
 	public Object visitIntLiteral(IntLiteral IL, Object o) {
-		System.out.println("int literal");
 		return StdEnvironment.intType;
 	}
 
@@ -472,13 +501,13 @@ public final class Checker implements Visitor {
 
 	// variables
 	public Object visitSimpleVar(SimpleVar ast, Object o) {
-		ast.I.visit(this,null);
-		if(ast.I == null){
-			reporter.reportError(errMesg[5]  , "", ast.position);
-		}else{
-			System.out.println("should be good" + ast.I.spelling);
+		ast.I.visit(this, null);
+		Decl decl = (Decl) ast.I.decl;
+		if (ast.I.decl == null) {
+			reporter.reportError(errMesg[5], "", ast.position);
+			return null;
 		}
-		Decl decl = (Decl)ast.I.decl;
+		
 		return decl.T;
 	}
 
