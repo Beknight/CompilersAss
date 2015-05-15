@@ -503,6 +503,7 @@ public class Parser {
 		}else{
 			e3AST = new EmptyExpr(dummyPos);
 		}
+		
 		match(Token.RPAREN);
 		stmt = parseStmt();
 		finish(stmtPos);
