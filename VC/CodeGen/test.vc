@@ -1,0 +1,11 @@
+int main(){
+
+  float i = 0;
+  int j = 2;
+  int x = j;
+  boolean bool = false; 
+  i = i + j;
+  bool = (x > i);
+  bool = (j == x);
+  return 0;
+}
