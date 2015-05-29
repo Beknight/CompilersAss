@@ -56,9 +56,8 @@ L2:
 	iconst_1
 L3:
 	istore 5
-	iload_3
-	iload 4
-	if_icmpeq L4
+	iload 5
+	ifeq L4
 	iconst_0
 	goto L5
 L4:
@@ -71,5 +70,5 @@ L1:
 	
 	; set limits used by this method
 .limit locals 6
-.limit stack 6
+.limit stack 5
 .end method

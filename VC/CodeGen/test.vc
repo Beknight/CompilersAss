@@ -6,6 +6,6 @@ int main(){
   boolean bool = false; 
   i = i + j;
   bool = (x > i);
-  bool = (j == x);
+  bool = !bool;
   return 0;
 }
