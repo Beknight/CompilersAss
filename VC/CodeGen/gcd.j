@@ -1,4 +1,4 @@
-.class public gcd
+.class public CodeGen/gcd
 .super java/lang/Object
 	
 .field static i I
@@ -8,9 +8,9 @@
 .method static <clinit>()V
 	
 	iconst_0
-	putstatic gcd/i I
+	putstatic CodeGen/gcd/i I
 	iconst_0
-	putstatic gcd/j I
+	putstatic CodeGen/gcd/j I
 	
 	; set limits used by this method
 .limit locals 0
@@ -28,7 +28,7 @@
 .end method
 .method gcd(II)I
 L0:
-.var 0 is this Lgcd; from L0 to L1
+.var 0 is this LCodeGen/gcd; from L0 to L1
 .var 1 is a I from L0 to L1
 .var 2 is b I from L0 to L1
 	iload_2
@@ -40,20 +40,9 @@ L4:
 	iconst_1
 L5:
 	ifeq L2
-	iload_1
 	ireturn
 	goto L3
 L2:
-	aload_0
-	iload_2
-	iload_1
-	iload_1
-	iload_2
-	idiv
-	iload_2
-	imul
-	isub
-	invokevirtual gcd/gcd(II)I
 	ireturn
 L3:
 L1:
@@ -61,24 +50,24 @@ L1:
 	
 	; set limits used by this method
 .limit locals 3
-.limit stack 5
+.limit stack 2
 .end method
 .method public static main([Ljava/lang/String;)V
 L0:
 .var 0 is argv [Ljava/lang/String; from L0 to L1
-.var 1 is vc$ Lgcd; from L0 to L1
-	new gcd
+.var 1 is vc$ LCodeGen/gcd; from L0 to L1
+	new CodeGen/gcd
 	dup
-	invokenonvirtual gcd/<init>()V
+	invokenonvirtual CodeGen/gcd/<init>()V
 	astore_1
 	invokestatic VC/lang/System.getInt()I
-	putstatic gcd/i I
+	putstatic CodeGen/gcd/i I
 	invokestatic VC/lang/System.getInt()I
-	putstatic gcd/j I
+	putstatic CodeGen/gcd/j I
 	aload_1
-	getstatic gcd/i I
-	getstatic gcd/j I
-	invokevirtual gcd/gcd(II)I
+	getstatic CodeGen/gcd/i I
+	getstatic CodeGen/gcd/j I
+	invokevirtual CodeGen/gcd/gcd(II)I
 	invokestatic VC/lang/System/putIntLn(I)V
 L1:
 	return

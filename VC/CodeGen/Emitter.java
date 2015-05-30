@@ -12,10 +12,6 @@
 
 package VC.CodeGen;
 
-import java.util.LinkedList;
-import java.util.Enumeration;
-import java.util.ListIterator;
-
 import VC.ASTs.*;
 import VC.ErrorReporter;
 import VC.StdEnvironment;
@@ -138,22 +134,85 @@ public final class Emitter implements Visitor {
 	}
 
 	public Object visitIfStmt(IfStmt ast, Object o) {
+		Frame frame = (Frame) o;
+		// grab two labels
+		String lOne = frame.getNewLabel();
+		String lTwo = frame.getNewLabel();
+		
+		ast.E.visit(this,o);
+		// emit the if eq statemetn
+		emit(JVM.IFEQ,lOne);
+		//visit s1
+		ast.S1.visit(this,o);
+		// emit go to
+		emit(JVM.GOTO, lTwo);
+		// l1 label
+		emit(lOne + ":");
+		//visit s2
+		ast.S2.visit(this,o);
+		//l2 label
+		emit(lTwo + ":");
 		return null;
 	}
 
 	public Object visitWhileStmt(WhileStmt ast, Object o) {
+		Frame frame = (Frame) o;
+		// get the two labels
+		String lOne = frame.getNewLabel();
+		String lTwo = frame.getNewLabel();
+		System.out.println(" the two while labes: " + lOne + " : " + lTwo);
+		//push lone to continue psuh ltwo to break
+		frame.conStack.push(lOne);
+		frame.brkStack.push(lTwo);
+		emit(lOne + ":");
+		ast.E.visit(this,o);
+		emit(JVM.IFEQ,lTwo);
+		ast.S.visit(this,o);
+		emit(JVM.GOTO,lOne);
+		emit(lTwo + ":");
+		//pop the stack
+		frame.conStack.pop();
+		frame.brkStack.pop();
 		return null;
 	}
 
 	public Object visitForStmt(ForStmt ast, Object o) {
+		Frame frame = (Frame) o;
+		// get two labels
+		String lOne = frame.getNewLabel();
+		String lTwo = frame.getNewLabel();
+		frame.conStack.push(lOne);
+		frame.brkStack.push(lTwo);
+		//E1
+		ast.E1.visit(this,o);
+		//l1:
+		emit(lOne + ":");
+		// e2
+		ast.E2.visit(this,o);
+		// if eq l2
+		emit(JVM.IFEQ,lTwo);
+		// statemetn
+		ast.S.visit(this,o);
+		//e3
+		ast.E3.visit(this,o);
+		//gotol1
+		emit(JVM.GOTO,lOne);
+		//l2:
+		emit(lTwo + ":");
 		return null;
 	}
 
 	public Object visitBreakStmt(BreakStmt ast, Object o) {
+		Frame frame = (Frame) o;
+		String breakString = frame.brkStack.peek();
+		emit(JVM.GOTO,breakString);
 		return null;
 	}
 
 	public Object visitContinueStmt(ContinueStmt ast, Object o) {
+		Frame frame = (Frame) o;
+		String contString = frame.conStack.peek();
+		emit(JVM.GOTO,contString);
 		return null;
 	}
 
@@ -218,7 +277,13 @@ public final class Emitter implements Visitor {
 			return null;
 		}
 
-		// Your other code goes here
+		// if float return float
+		// if inti have to cheick what the type of the funciton is;
+		if(ast.E.type.isIntType() || ast.E.type.isBooleanType()){
+			emit(JVM.IRETURN);
+		}else if(ast.E.type.isFloatType()){
+			emit(JVM.FRETURN);
+		}
 		return null;
 	}
 
@@ -463,7 +528,7 @@ public final class Emitter implements Visitor {
 			boolString = JVM.IF_ICMPGE;
 			isBoolean = true;
 		} else if (ast.O.spelling.equals("i<")) {
-			boolString = JVM.IF_ICMPGT;
+			boolString = JVM.IF_ICMPLT;
 			isBoolean = true;
 		} else if (ast.O.spelling.equals("i<=")) {
 			boolString = JVM.IF_ICMPLE;
@@ -546,6 +611,15 @@ public final class Emitter implements Visitor {
 	public Object visitAssignExpr(AssignExpr ast, Object o) {
 		ast.E1.visit(this, o);
 		ast.E2.visit(this, o);
+		
+		// if e2 not an assign expression but parent is
+		if(ast.parent instanceof AssignExpr && !(ast.E2 instanceof AssignExpr)){
+			AssignExpr curAss = ast;
+			while(curAss.parent instanceof AssignExpr){
+				curAss = (AssignExpr)curAss.parent;
+				emit(JVM.DUP);
+			}
+		}
 		// store instruction
 		checkLVar(ast.E1);
 		return null;
@@ -740,6 +814,30 @@ public final class Emitter implements Visitor {
 
 	public Object visitArg(Arg ast, Object o) {
 		ast.E.visit(this, o);
+		// get the arg,  it'll be a var exp
+		// check if it has a global var decl or normal var decl
+		if(ast.E instanceof VarExpr){
+			System.out.println("yeah mate we visiting args");
+			VarExpr varExpr = (VarExpr) ast.E;
+			// ensure that the var is a simple var
+			if(varExpr.V instanceof SimpleVar){
+				// check if the simple var I Decl is global or local
+				SimpleVar simVar = (SimpleVar) varExpr.V;
+				if(simVar.I.decl instanceof LocalVarDecl){
+					int index = -1;
+					index = ((LocalVarDecl) simVar.I.decl).index;
+					if (index >= 0 && index <= 3){
+						emit(JVM.ISTORE + "_" + index);
+					}else{
+						emit(JVM.ISTORE, index);
+					}
+				}else if(simVar.I.decl instanceof GlobalVarDecl){
+					GlobalVarDecl decl = (GlobalVarDecl) simVar.I.decl;
+					emit(JVM.GETSTATIC,classname + "/" + decl.I.spelling, VCtoJavaType(decl.T));
+				}
+				
+			}
+		}
 		return null;
 	}
 
@@ -932,15 +1030,27 @@ public final class Emitter implements Visitor {
 
 	private void emitISTORE(Ident ast) {
 		int index;
-		if (ast.decl instanceof ParaDecl)
+		boolean globalVarDecl = false;
+		if (ast.decl instanceof ParaDecl){
 			index = ((ParaDecl) ast.decl).index;
-		else
+		}else if(ast.decl instanceof LocalVarDecl){
 			index = ((LocalVarDecl) ast.decl).index;
-
-		if (index >= 0 && index <= 3)
-			emit(JVM.ISTORE + "_" + index);
-		else
-			emit(JVM.ISTORE, index);
+		}else if(ast.decl instanceof GlobalVarDecl){
+			System.out.println("okie dokes");
+			GlobalVarDecl decl = (GlobalVarDecl) ast.decl;
+			emit(JVM.PUTSTATIC,classname + "/" + decl.I.spelling, VCtoJavaType(decl.T));
+			globalVarDecl = true;
+			index = -1;
+		}else{
+			index = -1;
+		}
+		if(!globalVarDecl){
+			if (index >= 0 && index <= 3){
+				emit(JVM.ISTORE + "_" + index);
+			}else{
+				emit(JVM.ISTORE, index);
+			}
+		}
 	}
 
 	private void emitFSTORE(Ident ast) {
