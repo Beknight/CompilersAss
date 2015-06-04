@@ -86,6 +86,9 @@ public final class JVM {
 
     // load a local variable into the operand stack
     ALOAD = "aload",
+    IALOAD = "iaload",
+    FALOAD = "faload",
+    BALOAD = "baload",
     ALOAD_0 = "aload_0",
     ALOAD_1 = "aload_1",
     ALOAD_2 = "aload_2",
@@ -101,7 +104,10 @@ public final class JVM {
     FLOAD_2 = "fload_2",
     FLOAD_3 = "fload_3",
     // store the operand stack into a local variable
-    ASTORE = "astore",
+    ASTORE =  "astore",
+    IASTORE = "iastore",
+    FASTORE = "fastore",
+    BASTORE = "bastore",
     ASTORE_0 = "astore_0",
     ASTORE_1 = "astore_1",
     ASTORE_2 = "astore_2",
@@ -165,7 +171,10 @@ public final class JVM {
 
   // Object creation and manipulation
     NEW = "new",
-
+    NEWARRAY="newarray",
+    INTTYPE="int",
+    FLOATTYPE="float",
+    BOOLTYPE="boolean",
   // Operand Stack management instructions
    
     DUP = "dup",

@@ -591,6 +591,18 @@ public final class Emitter implements Visitor {
 		return index;
 	}
 
+	private int grabIndexArr(ArrayExpr v){
+		int index = -1;
+		if (v.V instanceof SimpleVar) {
+			SimpleVar simVar = (SimpleVar) v.V;
+			if (simVar.I.decl instanceof Decl) {
+				Decl decl = (Decl) simVar.I.decl;
+				index = decl.index;
+			}
+		}
+		return index;
+	}
+	
 	public Object visitInitExpr(InitExpr ast, Object o) {
 		return null;
 	}
@@ -600,6 +612,11 @@ public final class Emitter implements Visitor {
 	}
 
 	public Object visitArrayExpr(ArrayExpr ast, Object o) {
+		System.out.println("visiting array exxpr");
+		//load the array 
+		emitALOAD(grabIndexArr(ast));
+		// load the index pointer
+		ast.E.visit(this,o);
 		return null;
 	}
 
@@ -610,6 +627,8 @@ public final class Emitter implements Visitor {
 
 	public Object visitAssignExpr(AssignExpr ast, Object o) {
 		ast.E1.visit(this, o);
+		// must check if this is an array
+		
 		ast.E2.visit(this, o);
 		
 		// if e2 not an assign expression but parent is
@@ -636,6 +655,21 @@ public final class Emitter implements Visitor {
 				// booleans are loaded as ints
 				emitISTORE(grabIdent(varExp));
 			}
+		}else if(e instanceof ArrayExpr){
+			// cehck what type we are
+			ArrayExpr arrExp = (ArrayExpr) e;
+			ArrayType arrType = (ArrayType) arrExp.V.type;
+			System.out.println("type of ARREXP: " + arrType.T.isIntType());
+			
+//			// call i/f/b/astore // this command pops two
+			if (arrType.T.isIntType()) {
+				emitIASTORE();
+			} else if (arrType.T.isFloatType()) {
+				emitFASTORE();
+			} else if (arrType.T.isBooleanType()) {
+				// booleans are loaded as ints
+				emitBASTORE();
+			}
 		}
 	}
 
@@ -644,6 +678,15 @@ public final class Emitter implements Visitor {
 		Ident retIdent = null;
 		if (v.V instanceof SimpleVar) {
 			SimpleVar simVar = (SimpleVar) v.V;
+			retIdent = simVar.I;
+		}
+		return retIdent;
+	}
+	
+	public Ident grabArrIdent(ArrayExpr arr){
+		Ident retIdent = null;
+		if(arr.V instanceof SimpleVar){
+			SimpleVar simVar = (SimpleVar) arr.V;
 			retIdent = simVar.I;
 		}
 		return retIdent;
@@ -755,10 +798,22 @@ public final class Emitter implements Visitor {
 		emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " " + T
 				+ " from " + (String) frame.scopeStart.peek() + " to "
 				+ (String) frame.scopeEnd.peek());
-
+		// check the array type 
+		
+		if(ast.T.isArrayType()){
+//			dealWithArrType((ArrayType)(ast.T),o);
+			ast.T.visit(this,o);
+			// call the store command
+			if (ast.index >= 0 && ast.index <= 3)
+				emit(JVM.ASTORE + "_" + ast.index);
+			else
+				emit(JVM.ASTORE, ast.index);
+		}
+		
 		if (!ast.E.isEmptyExpr()) {
 			ast.E.visit(this, o);
 			checkRVar(ast.E, o);
+			
 			if (ast.T.equals(StdEnvironment.floatType)) {
 				// cannot call emitFSTORE(ast.I) since this I is not an
 				// applied occurrence
@@ -767,7 +822,9 @@ public final class Emitter implements Visitor {
 				else
 					emit(JVM.FSTORE, ast.index);
 				frame.pop();
-			} else {
+			} else if(ast.T.isArrayType()){
+				
+			}else {
 				// cannot call emitISTORE(ast.I) since this I is not an
 				// applied occurrence
 				if (ast.index >= 0 && ast.index <= 3)
@@ -868,6 +925,11 @@ public final class Emitter implements Visitor {
 	}
 
 	public Object visitArrayType(ArrayType ast, Object o) {
+		System.out.println("visitng array type");
+		//get the number of elements required,
+		ast.E.visit(this,o);
+		// create new array object
+		emit(JVM.NEWARRAY,JVM.INTTYPE);
 		return null;
 	}
 
@@ -1010,6 +1072,13 @@ public final class Emitter implements Visitor {
 
 	}
 
+	private void emitALOAD(int index) {
+		if (index >= 0 && index <= 3)
+			emit(JVM.ALOAD + "_" + index);
+		else
+			emit(JVM.ALOAD, index);
+	}
+	
 	private void emitILOAD(int index) {
 		if (index >= 0 && index <= 3)
 			emit(JVM.ILOAD + "_" + index);
@@ -1028,6 +1097,12 @@ public final class Emitter implements Visitor {
 		emit(JVM.GETSTATIC, classname + "/" + I, T);
 	}
 
+	private void emitIASTORE() {
+		emit(JVM.IASTORE);
+	}
+	private void emitFASTORE() {}
+	private void emitBASTORE() {}
+	
 	private void emitISTORE(Ident ast) {
 		int index;
 		boolean globalVarDecl = false;
