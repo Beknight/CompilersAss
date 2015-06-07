@@ -43,6 +43,16 @@ L5:
 	ireturn
 	goto L3
 L2:
+	aload_0
+	iload_2
+	iload_1
+	iload_1
+	iload_2
+	idiv
+	iload_2
+	imul
+	isub
+	invokevirtual CodeGen/gcd/gcd(II)I
 	ireturn
 L3:
 L1:
@@ -50,7 +60,7 @@ L1:
 	
 	; set limits used by this method
 .limit locals 3
-.limit stack 2
+.limit stack 5
 .end method
 .method public static main([Ljava/lang/String;)V
 L0:

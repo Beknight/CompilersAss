@@ -12,6 +12,8 @@
 
 package VC.CodeGen;
 
+import javax.naming.BinaryRefAddr;
+
 import VC.ASTs.*;
 import VC.ErrorReporter;
 import VC.StdEnvironment;
@@ -145,9 +147,11 @@ public final class Emitter implements Visitor {
 		String lTwo = frame.getNewLabel();
 		
 		ast.E.visit(this,o);
+		checkRVar(ast.E, o);
 		// emit the if eq statemetn
-		emit(JVM.IFEQ,lOne);
 		
+		emit(JVM.IFEQ,lOne);
+		frame.pop();
 		//visit s1
 		ast.S1.visit(this,o);
 		// emit go to
@@ -196,6 +200,7 @@ public final class Emitter implements Visitor {
 		ast.E2.visit(this,o);
 		// if eq l2
 		emit(JVM.IFEQ,lTwo);
+		frame.pop();
 		// statemetn
 		ast.S.visit(this,o);
 		//e3
@@ -268,7 +273,7 @@ public final class Emitter implements Visitor {
 		needToPop_ = true;
 		ast.E.visit(this, o);
 		if(needToPop_){
-//			frame.pop();
+			frame.pop();
 		}
 		return null;
 	}
@@ -290,6 +295,7 @@ public final class Emitter implements Visitor {
 
 		// if float return float
 		// if inti have to cheick what the type of the funciton is;
+		ast.E.visit(this,o);
 		if(ast.E.type.isIntType() || ast.E.type.isBooleanType()){
 			emit(JVM.IRETURN);
 		}else if(ast.E.type.isFloatType()){
@@ -361,14 +367,16 @@ public final class Emitter implements Visitor {
 		} else if (fname.equals("putLn")) {
 			ast.AL.visit(this, o); // push args (if any) into the op stack
 			emit("invokestatic VC/lang/System/putLn()V");
+			frame.pop();
 		} else { // programmer-defined functions
 
 			FuncDecl fAST = (FuncDecl) ast.I.decl;
 
 			// all functions except main are assumed to be instance methods
-			if (frame.isMain())
+			
+			if (frame.isMain()){
 				emit("aload_1"); // vc.funcname(...)
-			else
+			}else
 				emit("aload_0"); // this.funcname(...)
 			frame.push();
 
@@ -394,13 +402,14 @@ public final class Emitter implements Visitor {
 
 			emit("invokevirtual", classname + "/" + fname + "(" + argsTypes
 					+ ")" + retType);
+			System.out.println("to pop: " + (argsTypes.length() + 1));
 			frame.pop(argsTypes.length() + 1);
-
+			System.out.println("to pop: " + (argsTypes.length() + 1));
 			if (!retType.equals("V")){
 				frame.push();
-				needToPop_ = false;
 			}
 		}
+		needToPop_ = false;
 		return null;
 	}
 
@@ -523,15 +532,29 @@ public final class Emitter implements Visitor {
 			emit(JVM.IADD);
 		} else if (ast.O.spelling.equals("i*")) {
 			emit(JVM.IMUL);
-		} else if (ast.O.spelling.equals("f+")) {
+		} else if(ast.O.spelling.equals("i/")){
+			emit(JVM.IDIV);
+		}else if(ast.O.spelling.equals("i-")){
+			emit(JVM.ISUB);
+		}else if (ast.O.spelling.equals("f+")) {
 			emit(JVM.FADD);
 		} else if (ast.O.spelling.equals("f*")) {
 			emit(JVM.FMUL);
+		}else if(ast.O.spelling.equals("f/")){
+			emit(JVM.FDIV);
+		}else if(ast.O.spelling.equals("f-")){
+			emit(JVM.FSUB);
 		} else if (ast.O.spelling.equals("f>")) {
 			boolString = JVM.IFGT;
 			isBoolean = true;
 		} else if (ast.O.spelling.equals("f<")) {
 			boolString = JVM.IFLT;
+			isBoolean = true;
+		}else if (ast.O.spelling.equals("f<=")) {
+			boolString = JVM.IFLE;
+			isBoolean = true;
+		}else if (ast.O.spelling.equals("f>=")) {
+			boolString = JVM.IFGE;
 			isBoolean = true;
 		} else if (ast.O.spelling.equals("i>")) {
 			boolString = JVM.IF_ICMPGT;
@@ -551,7 +574,7 @@ public final class Emitter implements Visitor {
 		}
 
 		// check if is a boolean and grab the labesl
-		if (isBoolean) {
+		if (isBoolean && ast.O.spelling.contains("i")) {
 			// grab the labels
 			lOne = frame.getNewLabel();
 			lTwo = frame.getNewLabel();
@@ -567,7 +590,25 @@ public final class Emitter implements Visitor {
 			emit(JVM.ICONST_1);
 			// emit labelTwo
 			emit(lTwo + ":");
+		}else if(isBoolean && ast.O.spelling.contains("f")){
+			lOne = frame.getNewLabel();
+			lTwo = frame.getNewLabel();
+			// emit the string with label one
+			emit(JVM.FCMPG);
+			emit(boolString, lOne);
+			// emit const 0
+			emit(JVM.ICONST_0);
+			// emit jump
+			emit(JVM.GOTO, lTwo);
+			// emit labelOne
+			emit(lOne + ":");
+			// emti const 1
+			emit(JVM.ICONST_1);
+			// emit labelTwo
+			emit(lTwo + ":");
 		}
+		frame.pop();
+		
 		printEpilogue(ast.O.spelling, isBinaryBool, lOne, lTwo);
 		return null;
 	}
@@ -601,7 +642,7 @@ public final class Emitter implements Visitor {
 				emitFALOAD();
 			} else if (arrType.T.isBooleanType()) {
 				// booleans are loaded as ints
-				emitIALOAD();
+				emitBALOAD();
 			}
 			frame.push();
 		}
@@ -614,12 +655,16 @@ public final class Emitter implements Visitor {
 		if (v.V instanceof SimpleVar) {
 			SimpleVar simVar = (SimpleVar) v.V;
 			if (simVar.I.decl instanceof LocalVarDecl) {
-				Decl decl = (Decl) simVar.I.decl;
+				LocalVarDecl decl = (LocalVarDecl) simVar.I.decl;
+				index = decl.index;
+			}else if(simVar.I.decl instanceof ParaDecl){
+				ParaDecl decl = (ParaDecl) simVar.I.decl;
 				index = decl.index;
 			}else if(simVar.I.decl instanceof GlobalVarDecl){
 				GlobalVarDecl globDecl = (GlobalVarDecl) simVar.I.decl;
 				emitGETSTATIC(VCtoJavaType(globDecl.T), globDecl.I.spelling);
 			}
+		}else{
 		}
 		return index;
 	}
@@ -628,9 +673,13 @@ public final class Emitter implements Visitor {
 		int index = -1;
 		if (v.V instanceof SimpleVar) {
 			SimpleVar simVar = (SimpleVar) v.V;
-			if (simVar.I.decl instanceof Decl) {
-				Decl decl = (Decl) simVar.I.decl;
+			if (simVar.I.decl instanceof LocalVarDecl) {
+				LocalVarDecl decl = (LocalVarDecl) simVar.I.decl;
 				index = decl.index;
+			}
+			else if(simVar.I.decl instanceof GlobalVarDecl){
+				GlobalVarDecl globDecl = (GlobalVarDecl) simVar.I.decl;
+				emitGETSTATIC(VCtoJavaType(globDecl.T), globDecl.I.spelling);
 			}
 		}
 		return index;
@@ -645,10 +694,13 @@ public final class Emitter implements Visitor {
 	}
 
 	public Object visitExprList(ExprList ast, Object o) {
+		Frame frame = (Frame) o;
 		// if not the last exprresion emit a dup
 		emit(JVM.DUP);
 		// emit the index of store
+		frame.push();
 		emitICONST(arrayCount_);
+		frame.push();
 		arrayCount_++;
 		// assume this is for an array
 		ast.E.visit(this,o);
@@ -660,15 +712,23 @@ public final class Emitter implements Visitor {
 		}else if(ast.E.type.isBooleanType()){
 			emitBASTORE();
 		}
+		frame.pop(3);
 		ast.EL.visit(this,o);
 		return null;
 	}
 
 	public Object visitArrayExpr(ArrayExpr ast, Object o) {
 		//load the array 
-		emitALOAD(grabIndexArr(ast));
+		Frame frame = (Frame) o;
+		int index = grabIndexArr(ast);
+		if(index != -1){
+			emitALOAD(grabIndexArr(ast));
+			//jump here
+			frame.push();
+		}
 		// load the index pointer
 		ast.E.visit(this,o);
+		// load 
 		return null;
 	}
 
@@ -678,6 +738,7 @@ public final class Emitter implements Visitor {
 	}
 
 	public Object visitAssignExpr(AssignExpr ast, Object o) {
+		Frame frame = (Frame) o;
 		ast.E1.visit(this, o);
 		// must check if this is an array
 		ast.E2.visit(this, o);
@@ -688,15 +749,17 @@ public final class Emitter implements Visitor {
 			while(curAss.parent instanceof AssignExpr){
 				curAss = (AssignExpr)curAss.parent;
 				emit(JVM.DUP);
+				frame.push();
 			}
 		}
 		// store instruction
-		checkLVar(ast.E1);
+		checkLVar(ast.E1,o);
 		needToPop_ = false;
 		return null;
 	}
 
-	public void checkLVar(Expr e) {
+	public void checkLVar(Expr e, Object o) {
+		Frame frame = (Frame) o;
 		if (e instanceof VarExpr) {
 			VarExpr varExp = (VarExpr) e;
 			if (varExp.V.type.isIntType()) {
@@ -707,6 +770,7 @@ public final class Emitter implements Visitor {
 				// booleans are loaded as ints
 				emitISTORE(grabIdent(varExp));
 			}
+			frame.pop();
 		}else if(e instanceof ArrayExpr){
 			// cehck what type we are
 			ArrayExpr arrExp = (ArrayExpr) e;
@@ -720,6 +784,7 @@ public final class Emitter implements Visitor {
 				// booleans are loaded as ints
 				emitBASTORE();
 			}
+			frame.pop(3);
 		}
 	}
 
@@ -763,7 +828,6 @@ public final class Emitter implements Visitor {
 		Frame frame;
 
 		if (ast.I.spelling.equals("main")) {
-
 			frame = new Frame(true);
 
 			// Assume that main has one String parameter and reserve 0 for it
@@ -885,6 +949,8 @@ public final class Emitter implements Visitor {
 				emit(JVM.ASTORE + "_" + ast.index);
 			else
 				emit(JVM.ASTORE, ast.index);
+			
+			frame.pop(2);
 		}
 
 		return null;
@@ -902,7 +968,6 @@ public final class Emitter implements Visitor {
 		Frame frame = (Frame) o;
 		ast.index = frame.getNewIndex();
 		String T = VCtoJavaType(ast.T);
-
 		emit(JVM.VAR + " " + ast.index + " is " + ast.I.spelling + " " + T
 				+ " from " + (String) frame.scopeStart.peek() + " to "
 				+ (String) frame.scopeEnd.peek());
@@ -922,6 +987,7 @@ public final class Emitter implements Visitor {
 	}
 
 	public Object visitArg(Arg ast, Object o) {
+		Frame frame = (Frame) o;
 		ast.E.visit(this, o);
 		// get the arg,  it'll be a var exp
 		// check if it has a global var decl or normal var decl
@@ -942,9 +1008,23 @@ public final class Emitter implements Visitor {
 					}else if(simVar.type.isBooleanType()){
 						emitILOAD(index);
 					}
+					frame.push();
+				}if(simVar.I.decl instanceof ParaDecl){
+					int index = -1;
+					index = ((ParaDecl) simVar.I.decl).index;
+					// args you want to load
+					if(simVar.type.isIntType()){
+						emitILOAD(index);
+					}else if(simVar.type.isFloatType()){
+						emitFLOAD(index);
+					}else if(simVar.type.isBooleanType()){
+						emitILOAD(index);
+					}
+					frame.push();
 				}else if(simVar.I.decl instanceof GlobalVarDecl){
 					GlobalVarDecl decl = (GlobalVarDecl) simVar.I.decl;
 					emit(JVM.GETSTATIC,classname + "/" + decl.I.spelling, VCtoJavaType(decl.T));
+					frame.push();
 				}
 			}
 		}
@@ -979,6 +1059,7 @@ public final class Emitter implements Visitor {
 
 	public Object visitArrayType(ArrayType ast, Object o) {
 		//get the number of elements required,
+		Frame frame = (Frame) o;
 		ast.E.visit(this,o);
 		// create new array object
 		if(ast.T.isIntType()){
@@ -988,6 +1069,7 @@ public final class Emitter implements Visitor {
 		}else if(ast.T.isBooleanType()){
 			emit(JVM.NEWARRAY,JVM.BOOLTYPE);
 		}
+		frame.push();
 		return null;
 	}
 
