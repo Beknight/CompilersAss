@@ -1,4 +1,4 @@
-.class public max
+.class public CodeGen/max
 .super java/lang/Object
 	
 	
@@ -23,10 +23,10 @@
 .method public static main([Ljava/lang/String;)V
 L0:
 .var 0 is argv [Ljava/lang/String; from L0 to L1
-.var 1 is vc$ Lmax; from L0 to L1
-	new max
+.var 1 is vc$ LCodeGen/max; from L0 to L1
+	new CodeGen/max
 	dup
-	invokenonvirtual max/<init>()V
+	invokenonvirtual CodeGen/max/<init>()V
 	astore_1
 .var 2 is i I from L0 to L1
 	invokestatic VC/lang/System.getInt()I

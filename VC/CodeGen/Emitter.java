@@ -86,6 +86,11 @@ public final class Emitter implements Visitor {
 			DeclList dlAST = (DeclList) list;
 			if (dlAST.D instanceof GlobalVarDecl) {
 				GlobalVarDecl vAST = (GlobalVarDecl) dlAST.D;
+				if(vAST.T.isArrayType()){
+//					dealWithArrType((ArrayType)(ast.T),o);
+					vAST.T.visit(this,frame);
+					// call the store command
+				}
 				if (!vAST.E.isEmptyExpr()) {
 					vAST.E.visit(this, frame);
 				} else {
@@ -142,6 +147,7 @@ public final class Emitter implements Visitor {
 		ast.E.visit(this,o);
 		// emit the if eq statemetn
 		emit(JVM.IFEQ,lOne);
+		
 		//visit s1
 		ast.S1.visit(this,o);
 		// emit go to
@@ -160,7 +166,6 @@ public final class Emitter implements Visitor {
 		// get the two labels
 		String lOne = frame.getNewLabel();
 		String lTwo = frame.getNewLabel();
-		System.out.println(" the two while labes: " + lOne + " : " + lTwo);
 		//push lone to continue psuh ltwo to break
 		frame.conStack.push(lOne);
 		frame.brkStack.push(lTwo);
@@ -257,8 +262,14 @@ public final class Emitter implements Visitor {
 		return null;
 	}
 
+	boolean needToPop_;
 	public Object visitExprStmt(ExprStmt ast, Object o) {
+		Frame frame = (Frame) o;
+		needToPop_ = true;
 		ast.E.visit(this, o);
+		if(needToPop_){
+//			frame.pop();
+		}
 		return null;
 	}
 
@@ -385,8 +396,10 @@ public final class Emitter implements Visitor {
 					+ ")" + retType);
 			frame.pop(argsTypes.length() + 1);
 
-			if (!retType.equals("V"))
+			if (!retType.equals("V")){
 				frame.push();
+				needToPop_ = false;
+			}
 		}
 		return null;
 	}
@@ -438,7 +451,6 @@ public final class Emitter implements Visitor {
 
 	public boolean isBinaryBool(Operator o) {
 		boolean isBinary = false;
-		System.out.println("check" + o.spelling);
 		if (o.spelling.equals("!") || o.spelling.equals("i&&")
 				|| o.spelling.equals("i||")) {
 			isBinary = true;
@@ -565,13 +577,31 @@ public final class Emitter implements Visitor {
 		Frame frame = (Frame) o;
 		if (e instanceof VarExpr) {
 			VarExpr varExp = (VarExpr) e;
-			if (varExp.V.type.isIntType()) {
-				emitILOAD(grabIndex(varExp));
-			} else if (varExp.V.type.isFloatType()) {
-				emitFLOAD(grabIndex(varExp));
-			} else if (varExp.V.type.isBooleanType()) {
+			// check if it is a global decl or not
+			int index = grabIndex(varExp);
+			if(index != -1){
+				if (varExp.V.type.isIntType()) {
+					emitILOAD(index);
+				} else if (varExp.V.type.isFloatType()) {
+					emitFLOAD(index);
+				} else if (varExp.V.type.isBooleanType()) {
+					// booleans are loaded as ints
+					emitILOAD(index);
+				}
+				// deal with an array load
+				frame.push();
+			}
+		}else if(e instanceof ArrayExpr){
+			ArrayExpr arrExpr = (ArrayExpr) e;
+			// check what it is and load accordingly
+			ArrayType arrType = (ArrayType) arrExpr.V.type;
+			if (arrType.T.isIntType()) {
+				emitIALOAD();
+			} else if (arrType.T.isFloatType()) {
+				emitFALOAD();
+			} else if (arrType.T.isBooleanType()) {
 				// booleans are loaded as ints
-				emitILOAD(grabIndex(varExp));
+				emitIALOAD();
 			}
 			frame.push();
 		}
@@ -583,9 +613,12 @@ public final class Emitter implements Visitor {
 		int index = -1;
 		if (v.V instanceof SimpleVar) {
 			SimpleVar simVar = (SimpleVar) v.V;
-			if (simVar.I.decl instanceof Decl) {
+			if (simVar.I.decl instanceof LocalVarDecl) {
 				Decl decl = (Decl) simVar.I.decl;
 				index = decl.index;
+			}else if(simVar.I.decl instanceof GlobalVarDecl){
+				GlobalVarDecl globDecl = (GlobalVarDecl) simVar.I.decl;
+				emitGETSTATIC(VCtoJavaType(globDecl.T), globDecl.I.spelling);
 			}
 		}
 		return index;
@@ -602,17 +635,36 @@ public final class Emitter implements Visitor {
 		}
 		return index;
 	}
-	
+
+	int arrayCount_ = 0;
 	public Object visitInitExpr(InitExpr ast, Object o) {
+		arrayCount_ = 0;
+		ast.IL.visit(this,o);
+		arrayCount_ = 0;
 		return null;
 	}
 
 	public Object visitExprList(ExprList ast, Object o) {
+		// if not the last exprresion emit a dup
+		emit(JVM.DUP);
+		// emit the index of store
+		emitICONST(arrayCount_);
+		arrayCount_++;
+		// assume this is for an array
+		ast.E.visit(this,o);
+		// check the type of store and emit
+		if(ast.E.type.isIntType()){
+			emitIASTORE();
+		}else if(ast.E.type.isFloatType()){
+			emitFASTORE();
+		}else if(ast.E.type.isBooleanType()){
+			emitBASTORE();
+		}
+		ast.EL.visit(this,o);
 		return null;
 	}
 
 	public Object visitArrayExpr(ArrayExpr ast, Object o) {
-		System.out.println("visiting array exxpr");
 		//load the array 
 		emitALOAD(grabIndexArr(ast));
 		// load the index pointer
@@ -628,10 +680,9 @@ public final class Emitter implements Visitor {
 	public Object visitAssignExpr(AssignExpr ast, Object o) {
 		ast.E1.visit(this, o);
 		// must check if this is an array
-		
 		ast.E2.visit(this, o);
-		
 		// if e2 not an assign expression but parent is
+		checkRVar(ast.E2, o);
 		if(ast.parent instanceof AssignExpr && !(ast.E2 instanceof AssignExpr)){
 			AssignExpr curAss = ast;
 			while(curAss.parent instanceof AssignExpr){
@@ -641,6 +692,7 @@ public final class Emitter implements Visitor {
 		}
 		// store instruction
 		checkLVar(ast.E1);
+		needToPop_ = false;
 		return null;
 	}
 
@@ -659,8 +711,6 @@ public final class Emitter implements Visitor {
 			// cehck what type we are
 			ArrayExpr arrExp = (ArrayExpr) e;
 			ArrayType arrType = (ArrayType) arrExp.V.type;
-			System.out.println("type of ARREXP: " + arrType.T.isIntType());
-			
 //			// call i/f/b/astore // this command pops two
 			if (arrType.T.isIntType()) {
 				emitIASTORE();
@@ -799,15 +849,10 @@ public final class Emitter implements Visitor {
 				+ " from " + (String) frame.scopeStart.peek() + " to "
 				+ (String) frame.scopeEnd.peek());
 		// check the array type 
-		
 		if(ast.T.isArrayType()){
 //			dealWithArrType((ArrayType)(ast.T),o);
 			ast.T.visit(this,o);
 			// call the store command
-			if (ast.index >= 0 && ast.index <= 3)
-				emit(JVM.ASTORE + "_" + ast.index);
-			else
-				emit(JVM.ASTORE, ast.index);
 		}
 		
 		if (!ast.E.isEmptyExpr()) {
@@ -833,6 +878,13 @@ public final class Emitter implements Visitor {
 					emit(JVM.ISTORE, ast.index);
 				frame.pop();
 			}
+		}
+		if(ast.T.isArrayType() ){
+//			dealWithArrType((ArrayType)(ast.T),o);
+			if (ast.index >= 0 && ast.index <= 3)
+				emit(JVM.ASTORE + "_" + ast.index);
+			else
+				emit(JVM.ASTORE, ast.index);
 		}
 
 		return null;
@@ -874,7 +926,6 @@ public final class Emitter implements Visitor {
 		// get the arg,  it'll be a var exp
 		// check if it has a global var decl or normal var decl
 		if(ast.E instanceof VarExpr){
-			System.out.println("yeah mate we visiting args");
 			VarExpr varExpr = (VarExpr) ast.E;
 			// ensure that the var is a simple var
 			if(varExpr.V instanceof SimpleVar){
@@ -883,16 +934,18 @@ public final class Emitter implements Visitor {
 				if(simVar.I.decl instanceof LocalVarDecl){
 					int index = -1;
 					index = ((LocalVarDecl) simVar.I.decl).index;
-					if (index >= 0 && index <= 3){
-						emit(JVM.ISTORE + "_" + index);
-					}else{
-						emit(JVM.ISTORE, index);
+					// args you want to load
+					if(simVar.type.isIntType()){
+						emitILOAD(index);
+					}else if(simVar.type.isFloatType()){
+						emitFLOAD(index);
+					}else if(simVar.type.isBooleanType()){
+						emitILOAD(index);
 					}
 				}else if(simVar.I.decl instanceof GlobalVarDecl){
 					GlobalVarDecl decl = (GlobalVarDecl) simVar.I.decl;
 					emit(JVM.GETSTATIC,classname + "/" + decl.I.spelling, VCtoJavaType(decl.T));
 				}
-				
 			}
 		}
 		return null;
@@ -925,11 +978,16 @@ public final class Emitter implements Visitor {
 	}
 
 	public Object visitArrayType(ArrayType ast, Object o) {
-		System.out.println("visitng array type");
 		//get the number of elements required,
 		ast.E.visit(this,o);
 		// create new array object
-		emit(JVM.NEWARRAY,JVM.INTTYPE);
+		if(ast.T.isIntType()){
+			emit(JVM.NEWARRAY,JVM.INTTYPE);
+		}else if(ast.T.isFloatType()){
+			emit(JVM.NEWARRAY,JVM.FLOATTYPE);
+		}else if(ast.T.isBooleanType()){
+			emit(JVM.NEWARRAY,JVM.BOOLTYPE);
+		}
 		return null;
 	}
 
@@ -1092,6 +1150,18 @@ public final class Emitter implements Visitor {
 		else
 			emit(JVM.FLOAD, index);
 	}
+	
+	private void emitIALOAD(){
+		emit(JVM.IALOAD);
+	}
+	
+	private void emitFALOAD(){
+		emit(JVM.FALOAD);
+	}
+	
+	private void emitBALOAD(){
+		emit(JVM.BALOAD);
+	}
 
 	private void emitGETSTATIC(String T, String I) {
 		emit(JVM.GETSTATIC, classname + "/" + I, T);
@@ -1100,8 +1170,12 @@ public final class Emitter implements Visitor {
 	private void emitIASTORE() {
 		emit(JVM.IASTORE);
 	}
-	private void emitFASTORE() {}
-	private void emitBASTORE() {}
+	private void emitFASTORE() {
+		emit(JVM.FASTORE);
+	}
+	private void emitBASTORE() {
+		emit(JVM.BASTORE);
+	}
 	
 	private void emitISTORE(Ident ast) {
 		int index;
@@ -1111,7 +1185,6 @@ public final class Emitter implements Visitor {
 		}else if(ast.decl instanceof LocalVarDecl){
 			index = ((LocalVarDecl) ast.decl).index;
 		}else if(ast.decl instanceof GlobalVarDecl){
-			System.out.println("okie dokes");
 			GlobalVarDecl decl = (GlobalVarDecl) ast.decl;
 			emit(JVM.PUTSTATIC,classname + "/" + decl.I.spelling, VCtoJavaType(decl.T));
 			globalVarDecl = true;
@@ -1182,9 +1255,24 @@ public final class Emitter implements Visitor {
 			return "I";
 		else if (t.equals(StdEnvironment.floatType))
 			return "F";
+		else if (t.isArrayType())
+			return getArrayType((ArrayType)t);
 		else
 			// if (t.equals(StdEnvironment.voidType))
 			return "V";
 	}
+	
+	private String getArrayType(ArrayType t){
+		if(t.T.isIntType()){
+			return "[I";
+		}else if(t.T.isFloatType()){
+			return "[F";
+		}else if(t.T.isBooleanType()){
+			return "[Z";
+		}else{
+			return "V";
+		}
+	}
+	
 
 }
